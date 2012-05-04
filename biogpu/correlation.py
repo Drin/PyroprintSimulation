@@ -42,7 +42,8 @@ def pearson(X, Y, ranges):
     # Create a zero-initialized chunk of memory for the per-thread buckets and
     # copy it to the GPU.
     buckets = np.zeros(shape=(tile_size * tile_size * len(ranges), 1),
-                       dtype=np.uint64, order='C')
+                       dtype=np.uint64, 
+                       order='C')
     buckets_gpu = pycuda.gpuarray.to_gpu(buckets)
 
     # Do a kernel launch for each tile, copying the appropriate chunks of the
@@ -66,10 +67,16 @@ def pearson(X, Y, ranges):
                 np.put(B[j], range(p), Y[(t * tile_size) + j])
 
             pearson_cuda(buckets_gpu.gpudata,
-                         pycuda.driver.In(ranges_np), np.uint32(len(ranges)),
-                         pycuda.driver.In(A), pycuda.driver.In(B),
-                         np.uint32(tile_size), np.uint32(s), np.uint32(t),
-                         np.uint32(n), np.uint32(m), np.uint32(p),
+                         pycuda.driver.In(ranges_np), 
+                         np.uint32(len(ranges)),
+                         pycuda.driver.In(A), 
+                         pycuda.driver.In(B),
+                         np.uint32(tile_size), 
+                         np.uint32(s), 
+                         np.uint32(t),
+                         np.uint32(n), 
+                         np.uint32(m), 
+                         np.uint32(p),
                          block=(threads_per_block, threads_per_block, 1),
                          grid=(blocks_per_tile, blocks_per_tile))
 
@@ -82,8 +89,10 @@ def pearson(X, Y, ranges):
     sys.stdout.flush()
 
     # Do a parallel reduction to sum all the buckets element-wise.
-    reduction_cuda(buckets_gpu.gpudata, np.uint32(len(ranges)),
-                   np.uint32(tile_size), np.uint32(blocks_per_tile),
+    reduction_cuda(buckets_gpu.gpudata, 
+                   np.uint32(len(ranges)),
+                   np.uint32(tile_size), 
+                   np.uint32(blocks_per_tile),
                    block=(threads_per_block, 1, 1),
                    grid=(tile_size, 1))
 

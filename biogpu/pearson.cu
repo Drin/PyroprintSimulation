@@ -54,9 +54,8 @@ __global__ void pearson(uint64_t *buckets,
     uint32_t j_abs = j_offset + j;
 
     // Only compute values inside the bounds of the matrix.
-    if (i_abs >= n || j_abs >= m) {
+    if (i_abs >= n || j_abs >= m)
         return;
-    }
 
     // Initialize accumulators and the result.
     float sum_x, sum_y, sum_x2, sum_y2, sum_xy, coeff;
