@@ -50,7 +50,8 @@ def main():
   #Parse Command line
   helpmsg = "Takes Genome Sequences from DIR and generates all posible pyroprints.\nThen produces a pearson correlation and displays the results"
   parser = OptionParser(usage=helpmsg)
-  parser.add_option("-p", "--path", dest="dir", default="Genome Sequences/rDNA plasmid sequences/23-5/", help="Path to Genome Sequence Folders")
+  #parser.add_option("-p", "--path", dest="dir", default="Genome Sequences/rDNA plasmid sequences/23-5/", help="Path to Genome Sequence Folders")
+  parser.add_option("-p", "--path", dest="dir", default="Genome Sequences/", help="Path to Genome Sequence Folders")
   parser.add_option("-d", dest="DispSeq", default="AACACGCGA23(GATC)GAA", help="Dispensation order")
   parser.add_option("-m", "--max", dest="max", type="int", default=-1, help="Max number of combinations to generate")
   parser.add_option("-f", "--file", dest="file", help="File containing parameters")
@@ -91,7 +92,37 @@ def main():
   
   #Find all files in Dir
   path = dataPath
+  #print "path: {0}\n".format(path)
   listing = os.listdir(path)
+  removalListing = []
+
+  #print "listing: {0}\n".format(listing)
+
+  for entry in listing:
+     if os.path.isdir(path + entry):
+        #print "{0} is a directory\n".format(path + entry)
+        for subDir in os.listdir(path + entry):
+            #print "adding {0}\n".format(path + entry + "/" + subDir)
+            listing.append(entry + "/" + subDir)
+
+        #print "need to remove {0}\n".format(path + entry)
+        removalListing.append(entry)
+
+     elif (entry.find(".seq") <= 0 and entry.find(".txt") <= 0):
+        #print "will remove {0}\n".format(entry)
+        removalListing.append(entry)
+        #print "{0} is not a directory\n".format(entry)
+
+     #else:
+     #   print "{0} is confused\n".format(entry)
+
+  for entry in removalListing:
+     listing.remove(entry)
+
+  #for entry in listing:
+  #   print "{0} should be a sequence.\n".format(path + entry)
+
+  #sys.exit(0)
   allSequences =[]
   #TODO: parse both types of files. Cassettes and rDNA
   
@@ -106,7 +137,7 @@ def main():
         if(text.find("ribosomal RNA")>0):
             for line in text:
                 if ">" in line:
-                    allSequences.append(substring)
+                    allSequences.append((infile, substring))
                     substring = line
                 else:
                     substring += line.replace("\n","")
@@ -114,13 +145,13 @@ def main():
             for line in text:
               substring += line.replace("\n","")
 
-            allSequences.append(substring)
+            allSequences.append((infile, substring))
   
   seqList = []
   primer = primerSequence
   
   print "Generating Sequences"
-  for sequence in allSequences:
+  for fileName, sequence in allSequences:
     #find primer
     if primer in sequence:
       seqCount = 0
@@ -136,14 +167,23 @@ def main():
         else:
             dispCount += 1
       #add sequence to the list
-      seqList.append(sequence[primerLoc+len(primerSequence):primerLoc+len(primerSequence)+seqCount])
+      seqList.append((fileName, sequence[primerLoc+len(primerSequence):primerLoc+len(primerSequence)+seqCount]))
 
 
   #find unique strings
   uniqueSequences = []
-  for oneSeq in seqList:
+  uniqueSequenceInfo = []
+  for fileName, oneSeq in seqList:
     if oneSeq not in uniqueSequences:
       uniqueSequences.append(oneSeq)
+      uniqueSequenceInfo.append((fileName, oneSeq))
+
+  print "{0} Unique Sequences:\n".format(len(uniqueSequenceInfo))
+  for fileName, seq in uniqueSequenceInfo:
+     print "\nallele '{0}' from file '{1}'\n".format(seq, fileName)
+
+  sys.exit(0)
+
   allCombinations = combinations_with_replacement(uniqueSequences,7)
 
 
