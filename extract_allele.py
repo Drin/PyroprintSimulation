@@ -7,12 +7,23 @@ from optparse import OptionParser
 import ConfigParser
 
 def extractAlleles():
+   DEBUG = True
+
+   if DEBUG:
+      print "parsing args..\n"
    (dataDir, disp, primer, numIsolates) = handleArgs()
 
+   if DEBUG:
+      print "expanding dispensation sequence..\n"
    dispSeq = expandSequence(disp)
   
+   if DEBUG:
+      print "retrieving sequence files..\n"
    validSequenceFiles = findSequenceFiles(dataDir)
    allSequences = extractFileSequences(validSequenceFiles)
+
+   if DEBUG:
+      print "retrieved all DNA sequences.\n"
 
    for seq in allSequences:
       print "{0} is a valid file\n".format(seq)
@@ -29,6 +40,8 @@ def extractAlleles():
          seqCount = 0
          dispCount = 0
          primerLoc = sequence.find(primer)
+         if (primerLoc < 0):
+            primerLoc = sequence.find(reverseComplSeq(primer))
          #get next X dispensations(X = length of the dispensation sequence(def 104) -
          #will make a pyroprint the length of the dispensation sequence)
          while dispCount < len(dispSeq):
@@ -129,6 +142,33 @@ def extractFileSequences(sequenceFiles):
                allSequences.append(substring)
 
    return allSequences
+
+def complement(char):
+   if (char == 'A'):
+      return 'T'
+   elif (char == 'T'):
+      return 'A'
+   elif (char == 'C'):
+      return 'G'
+   elif (char == 'G'):
+      return 'C'
+   else:
+      return char 
+
+def reverseComplSeq(seq):
+   reverseCompl = ""
+
+   for char in seq:
+      reverseComp = complement(char) + reverseCompl
+
+   return reverseCompl
+
+def reverseSeq(seq):
+   reverseSeq = ""
+   for char in seq:
+      reverseSeq = char + reverseSeq
+
+   return reverseSeq
 
 # Builds the whole dispensation order string from the string seqExp
 # seqExp should be in the format of [StartSeq](NumRepeat)[RepeatedSeq]
