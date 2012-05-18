@@ -11,58 +11,34 @@ def extractAlleles():
 
    if DEBUG:
       print "parsing args..\n"
+
    (dataDir, disp, primer, numIsolates) = handleArgs()
 
    if DEBUG:
       print "expanding dispensation sequence..\n"
+
    dispSeq = expandSequence(disp)
   
    if DEBUG:
       print "retrieving sequence files..\n"
+
    validSequenceFiles = findSequenceFiles(dataDir)
    allSequences = extractFileSequences(validSequenceFiles)
 
    if DEBUG:
       print "retrieved all DNA sequences.\n"
 
-   for seq in allSequences:
-      print "{0} is a valid file\n".format(seq)
+   seqList = pyroprintSequences(allSequences, dispSeq, primer)
 
-   sys.exit(0)
-  
-   seqList = []
-   primer = primerSequence
-  
-   print "Generating Sequences"
-   for sequence in allSequences:
-      #find primer
-      if primer in sequence:
-         seqCount = 0
-         dispCount = 0
-         primerLoc = sequence.find(primer)
-         if (primerLoc < 0):
-            primerLoc = sequence.find(reverseComplSeq(primer))
-         #get next X dispensations(X = length of the dispensation sequence(def 104) -
-         #will make a pyroprint the length of the dispensation sequence)
-         while dispCount < len(dispSeq):
-            if sequence[primerLoc+len(primerSequence)+seqCount] == dispSeq[dispCount]:
-               seqCount += 1
-
-            elif (sequence[primerLoc+len(primerSequence)+seqCount] != 'A') and (sequence[primerLoc+len(primerSequence)+seqCount] != 'T') and (sequence[primerLoc+len(primerSequence)+seqCount] != 'C') and (sequence[primerLoc+len(primerSequence)+seqCount] != 'G'):
-               seqCount += 1
-               dispCount += 1
-
-            else:
-               dispCount += 1
-
-         #add sequence to the list
-         seqList.append(sequence[primerLoc+len(primerSequence):primerLoc+len(primerSequence)+seqCount])
-
-   #find unique strings
    uniqueSequences = []
-   for oneSeq in seqList:
-      if oneSeq not in uniqueSequences:
-         uniqueSequences.append(oneSeq)
+   uniqueSeqFiles = []
+   for (seqFile, seqStr) in seqList:
+      if seqStr not in uniqueSequences:
+         uniqueSequences.append(seqStr)
+         uniqueSeqFiles.append(seqFile)
+
+   for alleleFile, allele in map(None, uniqueSeqFiles, uniqueSequences):
+      print "allele '{0}' from file '{1}'\n".format(allele, alleleFile)
 
 def handleArgs():
    parser = OptionParser(usage="Extracts alleles from input DNA sequences\n")
@@ -108,38 +84,68 @@ def findSequenceFiles(dataDir):
 
    for entry in allSequenceFiles:
       if os.path.isdir(dataDir + "/" + entry):
-         #print "{0} is a directory\n".format(dataDir + "/" + entry)
          for subEntry in os.listdir(dataDir + "/" + entry):
-            #print "{0} is a sub entry\n".format(subEntry)
             allSequenceFiles.append(entry + "/" + subEntry)
 
       elif os.path.isfile(dataDir + "/" + entry):
-         #print "{0} is not a directory\n".format(dataDir + "/" + entry)
          if entry.find(".seq") > 0 or entry.find(".txt") > 0:
-            #print "{0} is a valid sequence file\n".format(entry)
-            validSequenceFiles.append(dataDir + "/" + entry)
+            validSequenceFiles.append(dataDir + entry)
 
    return validSequenceFiles 
+
+def pyroprintSequences(allSequences, dispSeq, primer):
+   seqList = []
+
+   for (seqFile, seq) in allSequences:
+      seqCount = 0
+      dispCount = 0
+
+      if primer not in seq and primer not in reverseComplSeq(seq):
+         continue
+
+      primerLoc = seq.find(primer)
+      if (primerLoc < 0):
+         seq = reverseComplSeq(seq)
+         primerLoc = seq.find(primer)
+
+      while (dispCount < len(dispSeq)):
+         if (seq[primerLoc+len(primer)+seqCount] == dispSeq[dispCount]):
+            seqCount += 1
+
+         elif ((seq[primerLoc+len(primer)+seqCount] != 'A') and
+               (seq[primerLoc+len(primer)+seqCount] != 'T') and
+               (seq[primerLoc+len(primer)+seqCount] != 'C') and
+               (seq[primerLoc+len(primer)+seqCount] != 'G')):
+            seqCount += 1
+            dispCount += 1
+
+         else:
+            dispCount += 1
+
+      seqList.append((seqFile, seq[primerLoc+len(primer):primerLoc+len(primer)+seqCount]))
+   return seqList
 
 def extractFileSequences(sequenceFiles):
    allSequences = []
   
-   for pathEntry in os.listdir(sequenceFiles):
-      with open(pathEntry) as f:
+   for sequenceFile in sequenceFiles:
+      with open(sequenceFile) as f:
          text = f.read()
          substring = ""
 
          if (text.find("ribosomal RNA") > 0):
             for line in text:
                if ">" in line:
-                  allSequences.append(substring)
-                  substring = line
+                  if (substring != ""):
+                     allSequences.append(substring)
+                  substring = ""
                else:
                   substring += line.replace("\n","")
          else:
             for line in text:
                substring += line.replace("\n","")
-               allSequences.append(substring)
+
+         allSequences.append((sequenceFile, substring))
 
    return allSequences
 
@@ -152,14 +158,13 @@ def complement(char):
       return 'G'
    elif (char == 'G'):
       return 'C'
-   else:
-      return char 
+   return char 
 
 def reverseComplSeq(seq):
    reverseCompl = ""
 
    for char in seq:
-      reverseComp = complement(char) + reverseCompl
+      reverseCompl = complement(char) + reverseCompl
 
    return reverseCompl
 
@@ -188,3 +193,6 @@ def expandSequence(seqExp):
       else:
          complete += item
    return complete
+
+if __name__ == '__main__':
+   extractAlleles()
