@@ -6,40 +6,57 @@ import re
 from optparse import OptionParser
 import ConfigParser
 
+
+DEBUG = True
+
+'''
+A Method which extracts alleles from a given set of DNA sequences. An allele is
+a DNA sequence that is unique in content given particular pyroprinting
+parameters. These alleles can be represented as DNA sequences, or alternatively
+as pyroprints (histograms). Biologically speaking, an allele suggests a genetic
+indication of a different strain (I think?).
+'''
 def extractAlleles():
-   DEBUG = True
-
-   if DEBUG:
-      print "parsing args..\n"
-
+   #Parse arguments and retrieve appropriate variables
    (dataDir, disp, primer, numIsolates) = handleArgs()
 
-   if DEBUG:
-      print "expanding dispensation sequence..\n"
-
+   #Expand an abbreviated "dispensation sequence"
+   #e.g. 2(ATCG) expands to ATCGATCG
    dispSeq = expandSequence(disp)
   
-   if DEBUG:
-      print "retrieving sequence files..\n"
-
+   #Find files that contain actual DNA sequence data
    validSequenceFiles = findSequenceFiles(dataDir)
+   #From DNA sequence files, extract the actual DNA sequences
    allSequences = extractFileSequences(validSequenceFiles)
 
-   if DEBUG:
-      print "retrieved all DNA sequences.\n"
-
+   #pyroprint the DNA sequences to discover alleles amongst all of the given
+   #DNA. seqList is a tuple containing:
+   #(<fileName>, <allele DNA sequence>, <allele histogram>)
    seqList = pyroprintSequences(allSequences, dispSeq, primer)
 
-   uniqueSequences = []
-   uniqueSeqFiles = []
-   for (seqFile, seqStr) in seqList:
-      if seqStr not in uniqueSequences:
-         uniqueSequences.append(seqStr)
-         uniqueSeqFiles.append(seqFile)
+   alleles = []
+   alleleFiles = []
+   allelePeaks = []
 
-   for alleleFile, allele in map(None, uniqueSeqFiles, uniqueSequences):
-      print "allele '{0}' from file '{1}'\n".format(allele, alleleFile)
+   for (seqFile, seqStr, seqPeaks) in seqList:
+      if seqStr not in alleles:
+         alleles.append(seqStr)
+         alleleFiles.append(seqFile)
+         allelePeaks.append(seqPeaks)
 
+   for alleleFile, allele, peak in map(None, alleleFiles, alleles, allelePeaks):
+      print "allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(allele,
+            alleleFile, peak)
+
+   return allelePeaks
+
+'''
+This method is parses command-line arguments. It returns a directory containing
+DNA sequences (or other directories) a dispensation sequence to use on given
+DNA sequences, a forward primer (which may need to be applied to the reverse
+complement strand) and an upper bound on the number of isolates to generate in
+silico.
+'''
 def handleArgs():
    parser = OptionParser(usage="Extracts alleles from input DNA sequences\n")
    parser.add_option("--path", dest="path", default="Genome Sequences/",
@@ -97,6 +114,8 @@ def pyroprintSequences(allSequences, dispSeq, primer):
    seqList = []
 
    for (seqFile, seq) in allSequences:
+      peakVals = [0] * len(dispSeq)
+      peakNdx = 0
       seqCount = 0
       dispCount = 0
 
@@ -111,6 +130,7 @@ def pyroprintSequences(allSequences, dispSeq, primer):
       while (dispCount < len(dispSeq)):
          if (seq[primerLoc+len(primer)+seqCount] == dispSeq[dispCount]):
             seqCount += 1
+            peakVals[peakNdx] += 1
 
          elif ((seq[primerLoc+len(primer)+seqCount] != 'A') and
                (seq[primerLoc+len(primer)+seqCount] != 'T') and
@@ -118,11 +138,13 @@ def pyroprintSequences(allSequences, dispSeq, primer):
                (seq[primerLoc+len(primer)+seqCount] != 'G')):
             seqCount += 1
             dispCount += 1
+            peakNdx += 1
 
          else:
             dispCount += 1
+            peakNdx += 1
 
-      seqList.append((seqFile, seq[primerLoc+len(primer):primerLoc+len(primer)+seqCount]))
+      seqList.append((seqFile, seq[primerLoc+len(primer):primerLoc+len(primer)+seqCount], peakVals))
    return seqList
 
 def extractFileSequences(sequenceFiles):
