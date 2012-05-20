@@ -1,4 +1,8 @@
 #include <stdint.h>
+#include <string.h>
+
+const int kNumAlleles = 22;
+const int kAllelesPerIsolate = 7;
 
 // n choose k
 __device__ int comb(int n, int k) {
@@ -57,7 +61,7 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
    }
 }
 
-__constant__ uint8_t alleles[24 * 104];
+__constant__ uint8_t alleles[22 * 104];
 
 __device__ void dump_bucket(uint64_t *buckets,
       uint32_t num_ranges, uint32_t tile_size,
@@ -125,8 +129,8 @@ __global__ void pearson(uint64_t *buckets,
    // Allocate space for the two isolates
    uint16_t i_isolate[104]; 
    uint16_t j_isolate[104]; 
-   memset(i_isolate, '\0', uint16_t * 104); 
-   memset(j_isolate, '\0', uint16_t * 104); 
+   memset(i_isolate, '\0', sizeof(uint16_t) * 104); 
+   memset(j_isolate, '\0', sizeof(uint16_t) * 104); 
 
    // Add up each 7 alleles to generate the two isolates
    for (int num1 = 0; num1 < 7; ++num1) {
