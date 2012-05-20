@@ -45,31 +45,18 @@ def pearson(X, Y, ranges):
                        dtype=np.uint64, order='C')
     buckets_gpu = pycuda.gpuarray.to_gpu(buckets)
 
-    # Do a kernel launch for each tile, copying the appropriate chunks of the
-    # input arrays into X and Y for each launch.
+    # Do a kernel launch for each tile
     for s in range(num_tiles[0]):
         for t in range(num_tiles[1]):
-            num_A = tile_size
-            remain_X = n - (s * tile_size)
-            num_A = num_A if num_A < remain_X else remain_X
-
-            A = np.zeros(shape=(num_A, p), dtype=np.float32, order='C')
-            for i in range(num_A):
-                np.put(A[i], range(p), X[(s * tile_size) + i])
-
-            num_B = tile_size
-            remain_Y = m - (t * tile_size)
-            num_B = num_B if num_B < remain_Y else remain_Y
-
-            B = np.zeros(shape=(num_B, p), dtype=np.float32, order='C')
-            for j in range(num_B):
-                np.put(B[j], range(p), Y[(t * tile_size) + j])
-
             pearson_cuda(buckets_gpu.gpudata,
-                         pycuda.driver.In(ranges_np), np.uint32(len(ranges)),
-                         pycuda.driver.In(A), pycuda.driver.In(B),
-                         np.uint32(tile_size), np.uint32(s), np.uint32(t),
-                         np.uint32(n), np.uint32(m), np.uint32(p),
+                         pycuda.driver.In(ranges_np), 
+                         np.uint32(len(ranges)),
+                         np.uint32(tile_size), 
+                         np.uint32(s), 
+                         np.uint32(t),
+                         np.uint32(n), 
+                         np.uint32(m), 
+                         np.uint32(p),
                          block=(threads_per_block, threads_per_block, 1),
                          grid=(blocks_per_tile, blocks_per_tile))
 
