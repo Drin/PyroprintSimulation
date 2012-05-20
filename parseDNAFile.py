@@ -27,12 +27,16 @@ import re
 from optparse import OptionParser
 import ConfigParser
 from extract_allele import extractAlleles
+import pycuda.autoinit
+import pycuda.compiler
+import pycuda.gpuarray
+import pycuda.driver
 
 # detect gpu support
 gpu_support = False
 try:
-    import biogpu.correlation
-    gpu_support = True
+   import biogpu.correlation
+   gpu_support = True
 except:
    pass
 
@@ -56,12 +60,20 @@ def main():
    (dataDir, disp, primer, numIsolates) = handleArgs()
 
    alleles = extractAlleles(dataDir, disp, primer, numIsolates)
-   for allele in alleles:
-      print allele
-   return
 
    print 'Storing alleles in constant memory'
+   alleles_c = np.zeros( shape=(len(alleles), len(alleles[0])), dtype=np.uint8, order='C')
+   for i in range(len(alleles)):
+      np.put(alleles_c[i], range(len(alleles[i])), alleles[i])
 
+   kernel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+      'biogpu/pearson.cu')
+   f = open(kernel_file, 'r')
+   kernel = pycuda.compiler.SourceModule(f.read())
+   f.close()
+
+   (const_ptr, size) = kernel.get_global("alleles")
+   pycuda.driver.memcpy_htod(const_ptr, alleles_c)
 
    print 'Calculating Pearson Correlation'
    buckets = biogpu.correlation.pearson(ranges)
