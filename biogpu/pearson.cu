@@ -17,7 +17,6 @@ __device__ int comb(int n, int k) {
    return (num/den);
 }
 
-
 // Gets isolate number |seq_num|, which is an index into a set of all isolates
 // composed of |kAllelesPerIsolate| alleles, where each allele is one of 
 // |kNumAlleles|. Order doesn't matter, and duplicates are allowed.
@@ -58,21 +57,18 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
    }
 }
 
-__device__ void dump_bucket(uint64_t *buckets, 
-                            uint32_t num_ranges, 
-                            uint32_t tile_size,
-                            uint32_t src_i, 
-                            uint32_t src_j,
-                            uint32_t dest_i, 
-                            uint32_t dest_j) {
+__constant__ uint8_t alleles[24 * 104];
+
+__device__ void dump_bucket(uint64_t *buckets,
+      uint32_t num_ranges, uint32_t tile_size,
+      uint32_t src_i, uint32_t src_j,
+      uint32_t dest_i, uint32_t dest_j) {
    // Element-wise sum for each in 0 -> num_ranges.
    for (uint32_t k = 0; k < num_ranges; k++) {
       uint32_t src_index = (tile_size * tile_size * k) +
          (tile_size * src_i) + src_j;
-
       uint32_t dest_index = (tile_size * tile_size * k) +
          (tile_size * dest_i) + dest_j;
-      
       buckets[dest_index] += buckets[src_index];
    }
 }
@@ -99,15 +95,10 @@ __global__ void reduction(uint64_t *buckets, uint32_t num_ranges,
    }
 }
 
-__global__ void pearson(uint64_t *buckets, 
-                        float *ranges, 
-                        uint32_t num_ranges,
-                        uint32_t tile_size, 
-                        uint32_t s, 
-                        uint32_t t,
-                        uint32_t n, 
-                        uint32_t m, 
-                        uint32_t p) {
+__global__ void pearson(uint64_t *buckets,
+      float *ranges, uint32_t num_ranges,
+      uint32_t tile_size, uint32_t s, uint32_t t,
+      uint32_t n, uint32_t m, uint32_t p) {
    // Calculate relative <i, j> coords within this tile.
    uint32_t i = blockIdx.y * blockDim.y + threadIdx.y; // row
    uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; // column
