@@ -30,6 +30,7 @@ def main():
     print(B)
     print('\n')
 
+    """
     print('=== Computing with Python/SciPy ===')
     python_start = time.time()
     python_buckets = compute_python(A, B, ranges)
@@ -42,6 +43,7 @@ def main():
 
     python_time = python_end - python_start
     print('Computed in %f seconds.\n' % python_time)
+    """
 
     print('=== Computing with CUDA ===')
     cuda_start = time.time()
@@ -56,8 +58,8 @@ def main():
     cuda_time = cuda_end - cuda_start
     print('Computed in %f seconds.\n' % cuda_time)
 
-    speedup = python_time / cuda_time
-    print('Speedup of %.2fx.\n' % speedup)
+#    speedup = python_time / cuda_time
+#    print('Speedup of %.2fx.\n' % speedup)
 
     print('Done.')
 
