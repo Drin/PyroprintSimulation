@@ -131,8 +131,8 @@ __global__ void pearson(uint64_t *buckets,
    // Add up each 7 alleles to generate the two isolates
    for (int num1 = 0; num1 < 7; ++num1) {
       for (int index = 0; index < 104; ++index) {
-         i_isolate[index] += c_alleles[i_allele_indices[num1] * 104 + index];
-         j_isolate[index] += c_alleles[j_allele_indices[num1] * 104 + index];
+         i_isolate[index] += alleles[i_allele_indices[num1] * 104 + index];
+         j_isolate[index] += alleles[j_allele_indices[num1] * 104 + index];
       }
    }
    
