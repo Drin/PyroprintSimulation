@@ -21,16 +21,19 @@
 import sys
 import os
 import itertools
-import numpy as np
+import numpy
 import math
 import re 
+from extract_allele import extractAlleles
 from optparse import OptionParser
 import ConfigParser
-from extract_allele import extractAlleles
 import pycuda.autoinit
 import pycuda.compiler
 import pycuda.gpuarray
 import pycuda.driver
+
+DEBUG = True
+TESTING = True
 
 # detect gpu support
 gpu_support = False
@@ -39,7 +42,6 @@ try:
    gpu_support = True
 except:
    pass
-
 
 ###PRIMER
 #16-23 primer GGAACCTGCGGTTGGATCAC
@@ -50,42 +52,59 @@ except:
 #16-23 CCTCTACTAGAGCG20(TCGA)TT
 
 def main():
-   #Detect gpu support
-   if gpu_support:
-      print "PyCUDA detected. GPU support enabled."
-   else:
-      print "PyCuda not detected. Exiting"
-      sys.exit
+   if DEBUG:
+      print("Configuring simulation...\n")
 
-   (dataDir, disp, primer, numIsolates) = handleArgs()
+   (dataDir, disp, primer, numIsolates, numRegions) = handleArgs()
 
-   alleles = extractAlleles(dataDir, disp, primer, numIsolates)
-   num_alleles = len(alleles)
-   print "number of alleles: ", num_alleles
+   if DEBUG:
+      print("Extracting allele information...\n")
+
+   (alleles, num_alleles, num_pyro_peaks) = extractAlleles(dataDir, disp, primer, numIsolates)
+
+   if DEBUG:
+      print(("Running simulation for {0} alleles and {1} length " +
+            "pyroprints...\n").format(num_alleles, num_pyro_peaks))
+
+   if DEBUG:
+      print("Preparing buckets for pearson correlation slices...\n")
 
    ranges = [(0.000, 1.000)]
-   g = generateRanges(0.9900,1,0.0001)
-   ranges.extend([x for x in g])
+   bucketSlices = generateRanges(0.9900, 1, 0.0001)
+   ranges.extend([bucketSlice for bucketSlice in bucketSlices])
 
-   print 'Storing alleles in constant memory'
-   alleles_c = np.zeros( shape=(len(alleles), len(alleles[0])), dtype=np.uint8, order='C')
-   for i in range(len(alleles)):
-      np.put(alleles_c[i], range(len(alleles[i])), alleles[i])
+   if DEBUG:
+      print('Preparing pyroprinted alleles for device constant memory...\n')
 
-   kernel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-      'biogpu/pearson.cu')
-   f = open(kernel_file, 'r')
-   kernel = pycuda.compiler.SourceModule(f.read())
-   f.close()
+   alleles_c = numpy.zeros(shape=(num_alleles, num_pyro_peaks), dtype=numpy.uint8, order='C')
+   for alleleNdx in range(num_alleles):
+      numpy.put(alleles_c[alleleNdx], range(num_pyro_peaks), alleles[alleleNdx])
+
+   if DEBUG:
+      print("Loading CUDA kernel source code...\n")
+
+   kernelFile = open(os.path.join(os.getcwd(), 'biogpu/pearson.cu'), 'r')
+   kernel = pycuda.compiler.SourceModule(kernelFile.read())
+   kernelFile.close()
 
    (const_ptr, size) = kernel.get_global("alleles")
-   print "constant memory alleles size: ", size
+
+   if DEBUG:
+      print(("Transferring {0} bytes of allele pyroprints into device " +
+            "constant memory...\n ").format(size))
+
    pycuda.driver.memcpy_htod(const_ptr, alleles_c)
 
-   print 'Calculating Pearson Correlation'
-   print 'Combinations: ', cr(num_alleles, 7)
-   buckets = biogpu.correlation.pearson(ranges, cr(num_alleles, 7), len(alleles[0]))
-   print('Results:')
+   if DEBUG:
+      print('Calculating pearson correlation for all pairwise combinations ' +
+            'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
+
+   if TESTING:
+      buckets = biogpu.correlation.pearson(kernel, ranges, calcCombinations(10, numRegions), num_pyro_peaks)
+   else:
+      buckets = biogpu.correlation.pearson(kernel, ranges, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
+
+   print('Results:\n')
    for i in range(len(buckets)):
       print('\t[%d] (%.1f%%, %.1f%%) = %d' % (i, ranges[i][0] * 100.0, ranges[i][1] * 100.0, buckets[i]))
    print('\n')
@@ -99,11 +118,12 @@ silico.
 '''
 def handleArgs():
    parser = OptionParser(usage="Extracts alleles\n")
-   parser.add_option("-p", "--path", dest="dir", default="Genome Sequences/rDNA plasmid sequences/23-5/", help="Path to Genome Sequence Folders")
+   parser.add_option("-p", "--path", dest="dir", default="Genome Sequences/", help="Path to Genome Sequence Folders")
    parser.add_option("-d", dest="DispSeq", default="AACACGCGA23(GATC)GAA", help="Dispensation order")
    parser.add_option("-m", "--max", dest="max", type="int", default=-1, help="Max number of combinations to generate")
    parser.add_option("-f", "--file", dest="file", help="File containing parameters", default="config.cfg")
-   parser.add_option("--primer", dest="primer", default="AACCTT", help="Primer to use")
+   parser.add_option("--primer", dest="primer", default="TTGGATCAC", help="Primer to use")
+   parser.add_option("--regionNum", dest="regionNum", type="int", default=7, help="Number of ITS Regions to simulate")
 
    (options, args) = parser.parse_args()
 
@@ -117,6 +137,11 @@ def handleArgs():
       else:
          numIsolates = -1
 
+      if config.has_option("params", "regionNum"):
+         numRegions = config.getint("params", "regionNum")
+      else:
+         numRegions = 7
+
       forwardPrimer = config.get("params", "primer")
       dispSeq = config.get("params", "DispSeq")
 
@@ -126,11 +151,15 @@ def handleArgs():
       numIsolates = options.max
       dispSeq = options.DispSeq
       forwardPrimer = options.primer
+      numRegions = options.regionNum
 
-   return (dataPath, dispSeq, forwardPrimer, numIsolates)
+   if TESTING:
+      numIsolates = 3
+
+   return (dataPath, dispSeq, forwardPrimer, numIsolates, numRegions)
 
 """
-Generates ranges
+Generates bucket pearson correlation value slice ranges
 """
 def generateRanges(start, stop, step):
    r = start
@@ -141,12 +170,22 @@ def generateRanges(start, stop, step):
       s += step
 
 """
-cr n r
-calculates combination with replacement
+Calculates the enumerations space for numAlleles number of alleles and
+numRegions number of ITS Region copies for the bacteria to be simulated. More
+formally, the enumeration space is represents all unique combinations (with
+replacement) of numAlleles and numRegions.
 """
-def cr(n, r):
-   return math.factorial(n + r - 1)/(math.factorial(r) * math.factorial(n - 1))
+def calcCombinations(numAlleles, numRegions):
+   return (math.factorial(numAlleles + numRegions - 1)/
+          (math.factorial(numRegions) * math.factorial(numAlleles - 1)))
 
-# This is the standard boilerplate that calls the main() function.
+'''
+If this file is called as a main file, then run the following
+'''
 if __name__ == '__main__':
-   main()
+   if gpu_support:
+      print "PyCUDA detected. GPU support enabled."
+      main()
+
+   else:
+      print "PyCuda not detected. Exiting"
