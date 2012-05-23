@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 
-const int kNumAlleles = 22;
+const int kNumAlleles = 24;
 const int kAllelesPerIsolate = 7;
 
 // n choose k
@@ -61,7 +61,7 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
    }
 }
 
-__constant__ uint8_t alleles[22 * 104];
+__constant__ uint8_t alleles[24 * 104];
 
 __device__ void dump_bucket(uint64_t *buckets,
       uint32_t num_ranges, uint32_t tile_size,
@@ -102,7 +102,7 @@ __global__ void reduction(uint64_t *buckets, uint32_t num_ranges,
 __global__ void pearson(uint64_t *buckets,
       float *ranges, uint32_t num_ranges,
       uint32_t tile_size, uint32_t s, uint32_t t,
-      uint32_t n, uint32_t m, uint32_t p) {
+      uint32_t c, uint32_t p) {
    // Calculate relative <i, j> coords within this tile.
    uint32_t i = blockIdx.y * blockDim.y + threadIdx.y; // row
    uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; // column
@@ -116,7 +116,7 @@ __global__ void pearson(uint64_t *buckets,
    uint32_t j_abs = j_offset + j;
 
    // Only compute values inside the bounds of the matrix.
-   if (i_abs >= n || j_abs >= m)
+   if (i_abs >= c || j_abs >= c)
       return;
 
    //TODO fix all these magic numbers
