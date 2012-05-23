@@ -45,7 +45,7 @@ def pearson(ranges, c, length_alleles):
                         np.uint32(tile_size), 
                         np.uint32(s), 
                         np.uint32(t),
-                        np.uint(c),
+                        np.uint32(c),
                         np.uint32(length_alleles),
                         block=(threads_per_block, threads_per_block, 1),
                         grid=(blocks_per_tile, blocks_per_tile))
