@@ -6,7 +6,7 @@ import re
 from optparse import OptionParser
 import ConfigParser
 
-DEBUG = True
+DEBUG = False
 
 '''
 A Method which extracts alleles from a given set of DNA sequences. An allele is
@@ -37,17 +37,17 @@ def extractAlleles(dataDir, disp, primer, numIsolates):
 
    # find unique strings
    for (seqFile, seqStr, seqPeaks) in seqList:
-      if seqStr not in alleles:
-         alleles.append(seqStr)
-         alleleFiles.append(seqFile)
-         allelePeaks.append(seqPeaks)
+      if (len(alleles) < numIsolates):
+         if (seqStr not in alleles):
+            alleles.append(seqStr)
+            alleleFiles.append(seqFile)
+            allelePeaks.append(seqPeaks)
 
-  # for alleleFile, allele, peak in map(None, alleleFiles, alleles, allelePeaks):
-  #    print "allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(allele,
-  #          alleleFile, peak)
+   if DEBUG:
+      for alleleFile, allele, peak in map(None, alleleFiles, alleles, allelePeaks):
+         print "allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(allele, alleleFile, peak)
 
-   return allelePeaks
-
+   return (allelePeaks, len(allelePeaks), len(dispSeq))
 
 
 def findSequenceFiles(dataDir):
@@ -64,6 +64,7 @@ def findSequenceFiles(dataDir):
             validSequenceFiles.append(dataDir + entry)
 
    return validSequenceFiles 
+
 
 def pyroprintSequences(allSequences, dispSeq, primer):
    seqList = []

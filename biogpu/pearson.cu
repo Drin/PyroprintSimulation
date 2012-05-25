@@ -126,28 +126,17 @@ __global__ void pearson(uint64_t *buckets,
    get_isolate(i_abs, i_allele_indices);
    get_isolate(j_abs, j_allele_indices);
 
-   // Allocate space for the two isolates
-   uint16_t i_isolate[104]; 
-   uint16_t j_isolate[104]; 
-   memset(i_isolate, '\0', sizeof(uint16_t) * 104); 
-   memset(j_isolate, '\0', sizeof(uint16_t) * 104); 
-
-   // Add up each 7 alleles to generate the two isolates
-   for (int num1 = 0; num1 < 7; ++num1) {
-      for (int index = 0; index < 104; ++index) {
-         i_isolate[index] += alleles[i_allele_indices[num1] * 104 + index];
-         j_isolate[index] += alleles[j_allele_indices[num1] * 104 + index];
-      }
-   }
-   
    // Initialize accumulators and the result.
-   float sum_x, sum_y, sum_x2, sum_y2, sum_xy, coeff;
-   sum_x = sum_y = sum_x2 = sum_y2 = sum_xy = coeff = 0.0f;
+   uint32_t sum_x = 0, sum_y = 0, sum_x2 = 0, sum_y2 = 0, sum_xy = 0;
 
    // Compute the sums.
    for (int index = 0; index < 104; ++index) {
-      float x = i_isolate[index];
-      float y = j_isolate[index];
+      uint32_t x = 0, y = 0;
+
+      for (int alleleNdx = 0; alleleNdx < 7; alleleNdx++) {
+         x += alleles[i_allele_indices[0] * 104 + index];
+         y += alleles[j_allele_indices[2] * 104 + index];
+      }
 
       sum_x += x;
       sum_y += y;
@@ -158,7 +147,7 @@ __global__ void pearson(uint64_t *buckets,
 
    // Compute the Pearson coefficient using the "sometimes numerically
    // unstable" method because it's way more computationally efficient.
-   coeff = (p * sum_xy - sum_x * sum_y) /
+   float coeff = (p * sum_xy - sum_x * sum_y) /
       sqrtf((p * sum_x2 - sum_x * sum_x) * (p * sum_y2 - sum_y * sum_y));
 
    // Dump it in the appropriate bucket. Buckets are allowed to overlap, so
