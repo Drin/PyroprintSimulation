@@ -16,11 +16,13 @@ def main():
               (0.75, 0.90),
               (0.90, 1.0)]
 
+    # Zero out a nxp matrix and a mxp matrix. 
     A = np.zeros(shape=(n, p), dtype=np.float32, order='C')
     B = np.zeros(shape=(m, p), dtype=np.float32, order='C')
+
+    # Fill each row with a random values 0-103 
     for i in range(n):
         np.put(A[i], range(p), np.random.rand(p).astype(np.float32))
-
     for i in range(m):
         np.put(B[i], range(p), np.random.rand(p).astype(np.float32))
 
@@ -70,9 +72,9 @@ def compute_python(X, Y, ranges):
     assert len(Y[0]) == len(Y[1]), 'Your sequences in Y should all be the same length.'
     assert len(X[0]) == len(Y[0]), 'Your sequences in X and Y should all be the same length.'
 
-    n = len(X)
-    m = len(Y)
-    p = len(X[0])
+    n = len(X) # Rows in X
+    m = len(Y) # Rows in Y
+    p = len(X[0]) # Columns in X and Y
 
     # Create the correlation matrix and buckets.
     matrix = np.zeros(shape=(n, m), dtype=np.float32, order='C')
@@ -81,7 +83,7 @@ def compute_python(X, Y, ranges):
     for i in range(n):
         for j in range(m):
             # Compute the coefficient.
-            coeff, _ = pearsonr(X[i], Y[j])
+            coeff, _ = pearsonr(X[i], Y[j]) # ith row of X, jth row of Y
             matrix[i][j] = coeff
 
             # Drop it in appropriate bucket.

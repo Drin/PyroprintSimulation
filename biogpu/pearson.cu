@@ -100,6 +100,21 @@ __global__ void reduction(uint64_t *buckets, uint32_t num_ranges,
    }
 }
 
+__device__ float fast_inverse_sqrt(float num) {
+   long i;
+   float x2, y;
+   const float threehalfs = 1.5F;
+
+   x2 = num * 0.5F;
+   y = num;
+   i = *(uint32_t*) &y;
+   i = 0x5f3759df - (i >> 1);
+   y = *(float*) &i;
+   y *= threehalfs - (x2 * y * y);
+
+   return y;
+}
+
 __global__ void pearson(uint64_t *buckets,
                         float *ranges, 
                         uint32_t num_ranges,
@@ -108,6 +123,7 @@ __global__ void pearson(uint64_t *buckets,
                         uint32_t tile_col, 
                         uint32_t num_isolates, 
                         uint32_t length_alleles) {
+
    // Calculate relative <i, j> coords within this tile.
    uint32_t i = blockIdx.y * blockDim.y + threadIdx.y; // row
    uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; // column
@@ -155,9 +171,13 @@ __global__ void pearson(uint64_t *buckets,
 
    // Compute the Pearson coefficient using the "sometimes numerically
    // unstable" method because it's way more computationally efficient.
-   float coeff = (length_alleles * sum_xy - sum_x * sum_y) /
-      sqrtf((length_alleles * sum_x2 - sum_x * sum_x) * 
-            (length_alleles * sum_y2 - sum_y * sum_y));
+   //float coeff = (length_alleles * sum_xy - sum_x * sum_y) /
+   //   sqrtf((length_alleles * sum_x2 - sum_x * sum_x) * 
+   //         (length_alleles * sum_y2 - sum_y * sum_y));
+   float coeff = 
+         (length_alleles * sum_xy - sum_x * sum_y) * 
+         fast_inverse_sqrt((length_alleles * sum_x2 - sum_x * sum_x) *   
+                           (length_alleles * sum_y2 - sum_y * sum_y));
 
    // Dump it in the appropriate bucket. 
    // Below is a commented-out comment that no longer applies. To re-implement
@@ -173,5 +193,4 @@ __global__ void pearson(uint64_t *buckets,
          break;
       }
    }
-
 }
