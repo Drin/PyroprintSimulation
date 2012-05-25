@@ -60,7 +60,7 @@ def main():
    (dataDir, disp, primer, numIsolates) = handleArgs()
 
    alleles = extractAlleles(dataDir, disp, primer, numIsolates)
-   num_alleles = len(alleles)
+   num_alleles = 3#len(alleles)
    print "number of alleles: ", num_alleles
 
    ranges = [(0.000, 1.000)]
@@ -68,12 +68,13 @@ def main():
    ranges.extend([x for x in g])
 
    print 'Storing alleles in constant memory'
-   alleles_c = np.zeros( shape=(len(alleles), len(alleles[0])), dtype=np.uint8, order='C')
-   for i in range(len(alleles)):
+   alleles_c = np.zeros(shape=(num_alleles, len(alleles[0])), dtype=np.uint8, order='C')
+   for i in range(num_alleles):
       np.put(alleles_c[i], range(len(alleles[i])), alleles[i])
 
-   kernel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-      'biogpu/pearson.cu')
+   kernel_file = '/home/mwrosen/cpe/458/PyroprintSimulation/biogpu/pearson.cu'
+#kernel_file = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+#'biogpu/pearson.cu')
    f = open(kernel_file, 'r')
    kernel = pycuda.compiler.SourceModule(f.read())
    f.close()
