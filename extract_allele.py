@@ -35,9 +35,11 @@ def extractAlleles(dataDir, disp, primer, numIsolates):
    alleleFiles = []
    allelePeaks = []
 
+   print ("numAlleles: {0}\n".format(numIsolates))
+
    # find unique strings
    for (seqFile, seqStr, seqPeaks) in seqList:
-      if (len(alleles) < numIsolates):
+      if (numIsolates == -1 or len(alleles) < numIsolates):
          if (seqStr not in alleles):
             alleles.append(seqStr)
             alleleFiles.append(seqFile)
