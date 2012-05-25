@@ -99,21 +99,6 @@ __global__ void reduction(uint64_t *buckets, uint32_t num_ranges,
    }
 }
 
-__device__ float fast_inverse_sqrt(float num) {
-   long i;
-   float x2, y;
-   const float threehalfs = 1.5F;
-
-   x2 = num * 0.5F;
-   y = num;
-   i = *(uint32_t*) &y;
-   i = 0x5f3759df - (i >> 1);
-   y = *(float*) &i;
-   y *= threehalfs - (x2 * y * y);
-
-   return y;
-}
-
 __global__ void pearson(uint64_t *buckets,
                         float *ranges, 
                         uint32_t num_ranges,
@@ -150,15 +135,15 @@ __global__ void pearson(uint64_t *buckets,
    get_isolate(j_abs, j_allele_indices);
 
    // Initialize accumulators and the result.
-   uint32_t sum_x = 0, sum_y = 0, sum_x2 = 0, sum_y2 = 0, sum_xy = 0;
+   float sum_x = 0, sum_y = 0, sum_x2 = 0, sum_y2 = 0, sum_xy = 0;
 
    // Compute the sums.
    for (int index = 0; index < length_alleles; ++index) {
-      uint32_t x = 0, y = 0;
+      uint16_t x = 0, y = 0;
 
       for (int alleleNdx = 0; alleleNdx < kAllelesPerIsolate; alleleNdx++) {
-         x += alleles[i_allele_indices[0] * length_alleles + index];
-         y += alleles[j_allele_indices[2] * length_alleles + index];
+         x += alleles[i_allele_indices[alleleNdx] * length_alleles + index];
+         y += alleles[j_allele_indices[alleleNdx] * length_alleles + index];
       }
 
       sum_x += x;
