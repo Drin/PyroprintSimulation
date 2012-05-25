@@ -30,20 +30,20 @@ def pearson(kernel, ranges, numIsolates, length_alleles, num_threads=16, num_blo
    buckets_gpu = pycuda.gpuarray.to_gpu(buckets)
 
    # Do a kernel launch for each tile
-   for s in range(num_tiles[0]):
-       for t in range(num_tiles[1]):
+   for tileRow in range(num_tiles[0]):
+       for tileCol in range(num_tiles[1]):
            pearson_cuda(buckets_gpu.gpudata,
                         pycuda.driver.In(ranges_np), 
                         numpy.uint32(num_buckets),
                         numpy.uint32(tile_size), 
-                        numpy.uint32(s), 
-                        numpy.uint32(t),
+                        numpy.uint32(tileRow), 
+                        numpy.uint32(tileCol),
                         numpy.uint32(numIsolates),
                         numpy.uint32(length_alleles),
                         block=(num_threads, num_threads, 1),
                         grid=(num_blocks, num_blocks))
 
-           progress = (s * num_tiles[1] + t) * 100.0 / (num_tiles[0] * num_tiles[1])
+           progress = (tileRow * num_tiles[1] + tileCol) * 100.0 / (num_tiles[0] * num_tiles[1])
            sys.stdout.write('\rComputing correlations %.3f%%' % progress)
            sys.stdout.flush()
 

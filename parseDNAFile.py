@@ -16,7 +16,7 @@
   compare pyroprints
   CUDA pearson correlation
   Graph pyroprints
-  """
+"""
 
 import sys
 import os
@@ -55,12 +55,12 @@ def main():
    if DEBUG:
       print("Configuring simulation...\n")
 
-   (dataDir, disp, primer, numIsolates, numRegions) = handleArgs()
+   (dataDir, disp, primer, maxAlleles, numRegions) = handleArgs()
 
    if DEBUG:
       print("Extracting allele information...\n")
 
-   (alleles, num_alleles, num_pyro_peaks) = extractAlleles(dataDir, disp, primer, numIsolates)
+   (alleles, num_alleles, num_pyro_peaks) = extractAlleles(dataDir, disp, primer, maxAlleles)
 
    if DEBUG:
       print(("Running simulation for {0} alleles and {1} length " +
@@ -99,10 +99,7 @@ def main():
       print('Calculating pearson correlation for all pairwise combinations ' +
             'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
 
-   if TESTING:
-      buckets = biogpu.correlation.pearson(kernel, ranges, calcCombinations(10, numRegions), num_pyro_peaks)
-   else:
-      buckets = biogpu.correlation.pearson(kernel, ranges, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
+   buckets = biogpu.correlation.pearson(kernel, ranges, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
 
    print('Results:\n')
    for i in range(len(buckets)):
@@ -133,9 +130,9 @@ def handleArgs():
       dataPath = config.get("params", "path")
 
       if config.has_option("params", "max"):
-         numIsolates = config.getint("params", "max")
+         maxAlleles = config.getint("params", "max")
       else:
-         numIsolates = -1
+         maxAlleles = -1
 
       if config.has_option("params", "regionNum"):
          numRegions = config.getint("params", "regionNum")
@@ -148,15 +145,15 @@ def handleArgs():
    else:
       #Use command line args
       dataPath = options.dir
-      numIsolates = options.max
+      maxAlleles = options.max
       dispSeq = options.DispSeq
       forwardPrimer = options.primer
       numRegions = options.regionNum
 
    if TESTING:
-      numIsolates = 3
+      maxAlleles = 3
 
-   return (dataPath, dispSeq, forwardPrimer, numIsolates, numRegions)
+   return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions)
 
 """
 Generates bucket pearson correlation value slice ranges
