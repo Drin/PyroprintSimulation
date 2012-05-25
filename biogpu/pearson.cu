@@ -5,21 +5,20 @@ const int kNumAlleles = 24;
 const int kAllelesPerIsolate = 7;
 const int kAllelesSize = 104;
 
-// n choose k
-__device__ int comb(int n, int k) {
-   if (n < k)
+__device__ int binomial_coefficient(int n, int k) {
+   if (k < 0 || k > n)
       return 0;
 
-   uint64_t num = 1;
-   uint64_t den = 1;
-   
-   for (int i = 1; i <= k; ++i)
-      den *= i;
-   
-   for (int i = n-k+1; i <= n; ++i)
-      num *= i;
+   if (k > n - k)
+      k = n - k;
 
-   return (num/den);
+   int c = 1;
+   for (int i = 1; i <= k; ++i) {
+      c *= n - k + i;
+      c /= i;
+   }
+
+   return c;
 }
 
 // Gets isolate number |seq_num|, which is an index into a set of all isolates
@@ -31,7 +30,7 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
    uint8_t cur_col = 0;
 
    // Init num to biggest "bucket"
-   int num = comb(cur_n - cur_col - 1 + cur_row, cur_row);
+   int num = binomial_coefficient(cur_n - cur_col - 1 + cur_row, cur_row);
 
    // Save in order to subtract from the "current" sequence number
    int old_num = 0;
@@ -51,13 +50,13 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
          cur_n -= cur_col;
          cur_row--;
 
-         num = comb(cur_n - 1 + cur_row, cur_row);
+         num = binomial_coefficient(cur_n - 1 + cur_row, cur_row);
 
          cur_col = 0;
       } else {
          cur_col++;
          old_num = num;
-         num += comb(cur_n - 1 - cur_col + cur_row, cur_row);
+         num += binomial_coefficient(cur_n - 1 - cur_col + cur_row, cur_row);
       }
    }
 }
@@ -171,13 +170,9 @@ __global__ void pearson(uint64_t *buckets,
 
    // Compute the Pearson coefficient using the "sometimes numerically
    // unstable" method because it's way more computationally efficient.
-   //float coeff = (length_alleles * sum_xy - sum_x * sum_y) /
-   //   sqrtf((length_alleles * sum_x2 - sum_x * sum_x) * 
-   //         (length_alleles * sum_y2 - sum_y * sum_y));
-   float coeff = 
-         (length_alleles * sum_xy - sum_x * sum_y) * 
-         fast_inverse_sqrt((length_alleles * sum_x2 - sum_x * sum_x) *   
-                           (length_alleles * sum_y2 - sum_y * sum_y));
+   float coeff = (length_alleles * sum_xy - sum_x * sum_y) /
+      sqrtf((length_alleles * sum_x2 - sum_x * sum_x) * 
+            (length_alleles * sum_y2 - sum_y * sum_y));
 
    // Dump it in the appropriate bucket. 
    // Below is a commented-out comment that no longer applies. To re-implement
@@ -190,7 +185,7 @@ __global__ void pearson(uint64_t *buckets,
          uint32_t index = (tile_size * tile_size * k) +
             (tile_size * i) + j;
          buckets[index]++;
-         break;
+         //break;
       }
    }
 }
