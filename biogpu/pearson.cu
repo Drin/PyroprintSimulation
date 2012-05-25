@@ -3,6 +3,7 @@
 
 const int kNumAlleles = 24;
 const int kAllelesPerIsolate = 7;
+const int kAllelesSize = 104;
 
 // n choose k
 __device__ int comb(int n, int k) {
@@ -48,7 +49,7 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
          
          // New parameters for new location in tree
          cur_n -= cur_col;
-         cur_row -= 1;
+         cur_row--;
 
          num = comb(cur_n - 1 + cur_row, cur_row);
 
@@ -61,7 +62,7 @@ __device__ void get_isolate(int seq_num, uint8_t* alleles) {
    }
 }
 
-__constant__ uint8_t alleles[24 * 104];
+__constant__ uint8_t alleles[kNumAlleles * 104];
 
 __device__ void dump_bucket(uint64_t *buckets,
       uint32_t num_ranges, uint32_t tile_size,
@@ -100,29 +101,36 @@ __global__ void reduction(uint64_t *buckets, uint32_t num_ranges,
 }
 
 __global__ void pearson(uint64_t *buckets,
-      float *ranges, uint32_t num_ranges,
-      uint32_t tile_size, uint32_t s, uint32_t t,
-      uint32_t c, uint32_t p) {
+                        float *ranges, 
+                        uint32_t num_ranges,
+                        uint32_t tile_size, 
+                        uint32_t tile_row, 
+                        uint32_t tile_col, 
+                        uint32_t num_isolates, 
+                        uint32_t length_alleles) {
    // Calculate relative <i, j> coords within this tile.
    uint32_t i = blockIdx.y * blockDim.y + threadIdx.y; // row
    uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; // column
 
-   // Calculate the offsets based on the tile number.
-   uint32_t i_offset = s * tile_size;
-   uint32_t j_offset = t * tile_size;
-
    // Calculate the absolute <i, j> coords within the matrix.
-   uint32_t i_abs = i_offset + i;
-   uint32_t j_abs = j_offset + j;
+   uint32_t i_abs = tile_row * tile_size + i;
+   uint32_t j_abs = tile_col * tile_size + j;
 
    // Only compute values inside the bounds of the matrix.
-   if (i_abs >= c || j_abs >= c)
+   if (i_abs >= num_isolates || j_abs >= num_isolates)
       return;
 
-   //TODO fix all these magic numbers
+   // We don't want to compare isolates with themselves, or any comparisons
+   // of a lower-numberes isolate to a higher-numbered one. Each pair of 
+   // isolates (order doesn't matter) will only be compared once. This will
+   // cause divergence only in the warps that lie along the main diagonal
+   // of the comparison matrix.
+   if (i_abs <= j_abs)
+      return;
+
    // Generate isolate |i_abs| and |j_abs|
-   uint8_t i_allele_indices[7]; 
-   uint8_t j_allele_indices[7]; 
+   uint8_t i_allele_indices[kAllelesPerIsolate]; 
+   uint8_t j_allele_indices[kAllelesPerIsolate]; 
    get_isolate(i_abs, i_allele_indices);
    get_isolate(j_abs, j_allele_indices);
 
@@ -130,12 +138,12 @@ __global__ void pearson(uint64_t *buckets,
    uint32_t sum_x = 0, sum_y = 0, sum_x2 = 0, sum_y2 = 0, sum_xy = 0;
 
    // Compute the sums.
-   for (int index = 0; index < 104; ++index) {
+   for (int index = 0; index < length_alleles; ++index) {
       uint32_t x = 0, y = 0;
 
-      for (int alleleNdx = 0; alleleNdx < 7; alleleNdx++) {
-         x += alleles[i_allele_indices[0] * 104 + index];
-         y += alleles[j_allele_indices[2] * 104 + index];
+      for (int alleleNdx = 0; alleleNdx < kAllelesPerIsolate; alleleNdx++) {
+         x += alleles[i_allele_indices[0] * length_alleles + index];
+         y += alleles[j_allele_indices[2] * length_alleles + index];
       }
 
       sum_x += x;
@@ -147,18 +155,23 @@ __global__ void pearson(uint64_t *buckets,
 
    // Compute the Pearson coefficient using the "sometimes numerically
    // unstable" method because it's way more computationally efficient.
-   float coeff = (p * sum_xy - sum_x * sum_y) /
-      sqrtf((p * sum_x2 - sum_x * sum_x) * (p * sum_y2 - sum_y * sum_y));
+   float coeff = (length_alleles * sum_xy - sum_x * sum_y) /
+      sqrtf((length_alleles * sum_x2 - sum_x * sum_x) * 
+            (length_alleles * sum_y2 - sum_y * sum_y));
 
-   // Dump it in the appropriate bucket. Buckets are allowed to overlap, so
-   // we need to check all of them.
+   // Dump it in the appropriate bucket. 
+   // Below is a commented-out comment that no longer applies. To re-implement
+   // this feature, remove the break statement below.
+   // //Buckets are allowed to overlap, so we need to check all of them.
    for (uint32_t k = 0; k < num_ranges; k++) {
-      float low = ranges[2 * k + 0];
-      float high = ranges[2 * k + 1];
-      if (coeff >= low && coeff < high) {
+      //float low = ranges[2 * k + 0];
+      //float high = ranges[2 * k + 1];
+      if (coeff >= ranges[2 * k] && coeff < ranges[2 * k + 1]) {
          uint32_t index = (tile_size * tile_size * k) +
             (tile_size * i) + j;
-         buckets[index] += 1;
+         buckets[index]++;
+         break;
       }
    }
+
 }

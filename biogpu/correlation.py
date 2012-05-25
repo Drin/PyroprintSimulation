@@ -7,16 +7,16 @@ import pycuda.gpuarray
 import pycuda.driver
 from math import factorial
 
-   # CUDA parameters that seem to work well. The number of threads per tile
-   # (the tile_size) should be a power of 2 for the parallel reduction to
-   # work right!
-def pearson(kernel, ranges, numIsolates, length_alleles, num_threads=16, num_blocks=64):
+# CUDA parameters that seem to work well. The number of threads per tile
+# (the tile_size) should be a power of 2 for the parallel reduction to
+# work right!
+def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16, num_blocks=64):
    pearson_cuda = kernel.get_function('pearson')
    reduction_cuda = kernel.get_function('reduction')
 
    num_buckets = len(ranges)
-   tile_size = num_threads * num_blocks
-   num_tiles = (numIsolates / tile_size + 1, numIsolates / tile_size + 1)
+   tile_size = num_threads * num_blocks      # Threads per row/col of a tile
+   num_tiles = num_isolates / tile_size + 1  # Tiles per row/col of matrix
 
    # Copy the ranges into a numpy array.
    ranges_np = numpy.zeros(shape=(num_buckets, 2), dtype=numpy.float32, order='C')
@@ -30,20 +30,20 @@ def pearson(kernel, ranges, numIsolates, length_alleles, num_threads=16, num_blo
    buckets_gpu = pycuda.gpuarray.to_gpu(buckets)
 
    # Do a kernel launch for each tile
-   for tileRow in range(num_tiles[0]):
-       for tileCol in range(num_tiles[1]):
+   for tile_row in range(num_tiles):
+       for tile_col in range(tile_row, num_tiles):
            pearson_cuda(buckets_gpu.gpudata,
                         pycuda.driver.In(ranges_np), 
                         numpy.uint32(num_buckets),
                         numpy.uint32(tile_size), 
-                        numpy.uint32(tileRow), 
-                        numpy.uint32(tileCol),
-                        numpy.uint32(numIsolates),
+                        numpy.uint32(tile_row), 
+                        numpy.uint32(tile_col),
+                        numpy.uint32(num_isolates),
                         numpy.uint32(length_alleles),
                         block=(num_threads, num_threads, 1),
                         grid=(num_blocks, num_blocks))
 
-           progress = (tileRow * num_tiles[1] + tileCol) * 100.0 / (num_tiles[0] * num_tiles[1])
+           progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
            sys.stdout.write('\rComputing correlations %.3f%%' % progress)
            sys.stdout.flush()
 
