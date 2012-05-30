@@ -1,0 +1,19 @@
+To make:
+   python parseDNAFile.py
+
+Required modules:
+   PyCuda, NumPy
+
+Authors:
+   Aldrin
+   Doug
+   Mitchell
+   Fanley
+   Robert
+   Ben
+   Chris
+   David
+   Ian
+
+Copyright
+(C) 2012 ALL RIGHTS RESERVED.
