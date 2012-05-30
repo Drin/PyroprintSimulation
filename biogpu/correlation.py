@@ -10,8 +10,8 @@ from math import factorial
 # CUDA parameters that seem to work well. The number of threads per tile
 # (the tile_size) should be a power of 2 for the parallel reduction to
 # work right!
-def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16, 
-      num_blocks=64):
+def pearson(kernel, ranges, num_alleles, alleles_per_isolate, num_isolates, 
+      length_alleles, num_threads=16, num_blocks=64):
    pearson_cuda = kernel.get_function('pearson')
    reduction_cuda = kernel.get_function('reduction')
 
@@ -20,9 +20,7 @@ def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16,
    num_tiles = num_isolates / tile_size + 1  # Tiles per row/col of matrix
 
    # Copy the ranges into a numpy array.
-   ranges_np = numpy.zeros(shape=(num_buckets, 2), 
-                           dtype=numpy.float32, 
-                           order='C')
+   ranges_np = numpy.zeros(shape=(num_buckets, 2), dtype=numpy.float32, order='C')
    for bucketNdx in range(num_buckets):
        numpy.put(ranges_np[bucketNdx], range(2), ranges[bucketNdx])
 
@@ -34,26 +32,27 @@ def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16,
 
    # Do a kernel launch for each tile
    for tile_row in range(num_tiles):
-       for tile_col in range(tile_row, num_tiles):
+      for tile_col in range(tile_row, num_tiles):
            pearson_cuda(buckets_gpu.gpudata,
                         pycuda.driver.In(ranges_np), 
                         numpy.uint32(num_buckets),
                         numpy.uint32(tile_size), 
                         numpy.uint32(tile_row), 
                         numpy.uint32(tile_col),
+                        numpy.uint8(num_alleles),
+                        numpy.uint8(alleles_per_isolate),
                         numpy.uint32(num_isolates),
                         numpy.uint32(length_alleles),
                         block=(num_threads, num_threads, 1),
                         grid=(num_blocks, num_blocks))
 
-           progress = 100.0 * (tile_row * num_tiles + tile_col) / 
-                      (num_tiles * num_tiles)
+           progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
            sys.stdout.write('\rComputing correlations %.3f%%' % progress)
            sys.stdout.flush()
 
-   print('\rComputing correlations 100.000%')
-   sys.stdout.write('Merging buckets...\n')
-   sys.stdout.flush()
+#print('\rComputing correlations 100.000%')
+#sys.stdout.write('Merging buckets...\n')
+#sys.stdout.flush()
 
    # Do a parallel reduction to sum all the buckets element-wise.
    reduction_cuda(buckets_gpu.gpudata, numpy.uint32(num_buckets),

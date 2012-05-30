@@ -33,6 +33,7 @@ import pycuda.gpuarray
 import pycuda.driver
 
 DEBUG = True
+TESTING = False
 
 # detect gpu support
 gpu_support = False
@@ -68,8 +69,8 @@ def main():
    if DEBUG:
       print("Preparing buckets for pearson correlation slices...\n")
 
-   ranges = [(0.000, 1.000)]
-   bucketSlices = generateRanges(0.9900, 1, 0.0001)
+   ranges = [(-1.000, 0.000), (0.000, 1.000)]
+   bucketSlices = generateRanges(0.9900, 1.0000, 0.0001)
    ranges.extend([bucketSlice for bucketSlice in bucketSlices])
 
    if DEBUG:
@@ -98,11 +99,12 @@ def main():
       print('Calculating pearson correlation for all pairwise combinations ' +
             'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
 
-   buckets = biogpu.correlation.pearson(kernel, ranges, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
+   buckets = biogpu.correlation.pearson(kernel, ranges, num_alleles, 
+         numRegions, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
 
    print('Results:\n')
    for i in range(len(buckets)):
-      print('\t[%d] (%.1f%%, %.1f%%) = %d' % (i, ranges[i][0] * 100.0, ranges[i][1] * 100.0, buckets[i]))
+      print('\t[%d] (%.4f%%, %.4f%%) = %d' % (i, ranges[i][0] * 100.0, ranges[i][1] * 100.0, buckets[i]))
    print('\n')
 
 '''
@@ -114,12 +116,12 @@ silico.
 '''
 def handleArgs():
    parser = OptionParser(usage="Extracts alleles\n")
-   parser.add_option("-p", "--path", dest="dir", default="Genome Sequences/", help="Path to Genome Sequence Folders")
+   parser.add_option("-p", "--path", dest="path", default="Genome Sequences/", help="Path to Genome Sequence Folders")
    parser.add_option("-d", dest="DispSeq", default="AACACGCGA23(GATC)GAA", help="Dispensation order")
-   parser.add_option("-m", "--max", dest="max", type="int", default=-1, help="Max number of combinations to generate")
+   parser.add_option("-m", "--max", dest="maxAlleles", type="int", default=24, help="Max number of combinations to generate")
    parser.add_option("-f", "--file", dest="file", help="File containing parameters", default="config.cfg")
    parser.add_option("--primer", dest="primer", default="TTGGATCAC", help="Primer to use")
-   parser.add_option("--regionNum", dest="regionNum", type="int", default=7, help="Number of ITS Regions to simulate")
+   parser.add_option("--numRegions", dest="numRegions", type="int", default=7, help="Number of ITS Regions to simulate")
 
    (options, args) = parser.parse_args()
 
@@ -128,28 +130,30 @@ def handleArgs():
       config.read(options.file)
       dataPath = config.get("params", "path")
 
-      if config.has_option("params", "max"):
-         maxAlleles = config.getint("params", "max")
-      else:
-         maxAlleles = -1
+      if config.has_option("params", "maxAlleles"):
+         maxAlleles = config.getint("params", "maxAlleles")
+     
+      if TESTING:
+         maxAlleles = 4
 
-      if config.has_option("params", "regionNum"):
-         numRegions = config.getint("params", "regionNum")
-      else:
-         numRegions = 7
+      if config.has_option("params", "numRegions"):
+         numRegions = config.getint("params", "numRegions")
 
       forwardPrimer = config.get("params", "primer")
       dispSeq = config.get("params", "DispSeq")
 
    else:
       #Use command line args
-      dataPath = options.dir
-      maxAlleles = options.max
+      dataPath = options.path
+      maxAlleles = options.maxAlleles
       dispSeq = options.DispSeq
       forwardPrimer = options.primer
-      numRegions = options.regionNum
+      numRegions = options.numRegions
 
-   print ("maxAlleles should be {0}\n".format(maxAlleles))
+
+   #print ("maxAlleles should be {0}\n".format(maxAlleles))
+   #print ("numRegions should be {0}\n".format(numRegions))
+
    return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions)
 
 """
@@ -158,7 +162,7 @@ Generates bucket pearson correlation value slice ranges
 def generateRanges(start, stop, step):
    r = start
    s = start + step
-   while r < stop:
+   while s < stop:
       yield (r,s)
       r += step
       s += step
