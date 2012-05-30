@@ -189,12 +189,12 @@ __global__ void pearson(uint64_t *buckets,
                         // Number of nucleotides per allele
                         uint32_t length_alleles) {
    // Calculate relative <i, j> coords within this tile.
-   uint32_t i = blockIdx.y * blockDim.y + threadIdx.y; // row
-   uint32_t j = blockIdx.x * blockDim.x + threadIdx.x; // column
+   uint32_t i = blockIdx.x * blockDim.x + threadIdx.x; // column
+   uint32_t j = blockIdx.y * blockDim.y + threadIdx.y; // row
 
    // Calculate the absolute <i, j> coords within the matrix.
-   uint32_t i_abs = tile_row * tile_size + i;
-   uint32_t j_abs = tile_col * tile_size + j;
+   uint32_t i_abs = tile_col * tile_size + i;
+   uint32_t j_abs = tile_row * tile_size + j;
 
    // Only compute values inside the bounds of the matrix.
    if (i_abs >= num_isolates || j_abs >= num_isolates)
