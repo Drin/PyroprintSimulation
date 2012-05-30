@@ -32,7 +32,6 @@ def main():
     print(B)
     print('\n')
 
-    """
     print('=== Computing with Python/SciPy ===')
     python_start = time.time()
     python_buckets = compute_python(A, B, ranges)
@@ -45,7 +44,6 @@ def main():
 
     python_time = python_end - python_start
     print('Computed in %f seconds.\n' % python_time)
-    """
 
     print('=== Computing with CUDA ===')
     cuda_start = time.time()

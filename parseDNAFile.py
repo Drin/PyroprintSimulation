@@ -33,7 +33,6 @@ import pycuda.gpuarray
 import pycuda.driver
 
 DEBUG = True
-TESTING = False
 
 # detect gpu support
 gpu_support = False
@@ -149,9 +148,6 @@ def handleArgs():
       dispSeq = options.DispSeq
       forwardPrimer = options.primer
       numRegions = options.regionNum
-
-   if TESTING:
-      maxAlleles = 15
 
    print ("maxAlleles should be {0}\n".format(maxAlleles))
    return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions)

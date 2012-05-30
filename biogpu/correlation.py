@@ -10,7 +10,8 @@ from math import factorial
 # CUDA parameters that seem to work well. The number of threads per tile
 # (the tile_size) should be a power of 2 for the parallel reduction to
 # work right!
-def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16, num_blocks=64):
+def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16, 
+      num_blocks=64):
    pearson_cuda = kernel.get_function('pearson')
    reduction_cuda = kernel.get_function('reduction')
 
@@ -19,7 +20,9 @@ def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16, num_bl
    num_tiles = num_isolates / tile_size + 1  # Tiles per row/col of matrix
 
    # Copy the ranges into a numpy array.
-   ranges_np = numpy.zeros(shape=(num_buckets, 2), dtype=numpy.float32, order='C')
+   ranges_np = numpy.zeros(shape=(num_buckets, 2), 
+                           dtype=numpy.float32, 
+                           order='C')
    for bucketNdx in range(num_buckets):
        numpy.put(ranges_np[bucketNdx], range(2), ranges[bucketNdx])
 
@@ -43,7 +46,8 @@ def pearson(kernel, ranges, num_isolates, length_alleles, num_threads=16, num_bl
                         block=(num_threads, num_threads, 1),
                         grid=(num_blocks, num_blocks))
 
-           progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
+           progress = 100.0 * (tile_row * num_tiles + tile_col) / 
+                      (num_tiles * num_tiles)
            sys.stdout.write('\rComputing correlations %.3f%%' % progress)
            sys.stdout.flush()
 
