@@ -34,6 +34,7 @@ import pycuda.driver
 
 DEBUG = True
 TESTING = False
+KERNELFILES = {'none': 'biogpu/pearson.cu','globalAlleles': 'biogpu/ga_pearson.cu'}
 
 # detect gpu support
 gpu_support = False
@@ -55,7 +56,7 @@ def main():
    if DEBUG:
       print("Configuring simulation...\n")
 
-   (dataDir, disp, primer, maxAlleles, numRegions) = handleArgs()
+   (dataDir, disp, primer, maxAlleles, numRegions, testingOpts) = handleArgs()
 
    if DEBUG:
       print("Extracting allele information...\n")
@@ -83,24 +84,30 @@ def main():
    if DEBUG:
       print("Loading CUDA kernel source code...\n")
 
-   kernelFile = open(os.path.join(os.getcwd(), 'biogpu/pearson.cu'), 'r')
+   kernel_file = KERNELFILES[testingOpts]
+
+   kernelFile = open(os.path.join(os.getcwd(), kernel_file), 'r')
    kernel = pycuda.compiler.SourceModule(kernelFile.read())
    kernelFile.close()
 
-   (const_ptr, size) = kernel.get_global("alleles")
+   # default performance is to store alleles in constant memory
+   if testingOpts == "none":
+      (const_ptr, size) = kernel.get_global("alleles")
 
-   if DEBUG:
-      print(("Transferring {0} bytes of allele pyroprints into device " +
+      if DEBUG:
+         print(("Transferring {0} bytes of allele pyroprints into device " +
             "constant memory...\n ").format(size))
 
-   pycuda.driver.memcpy_htod(const_ptr, alleles_c)
+         pycuda.driver.memcpy_htod(const_ptr, alleles_c)
 
    if DEBUG:
       print('Calculating pearson correlation for all pairwise combinations ' +
             'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
 
-   buckets = biogpu.correlation.pearson(kernel, ranges, num_alleles, 
-         numRegions, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
+   if testingOpts == "none":
+      buckets = biogpu.correlation.pearson(kernel, ranges, testingOpts, num_alleles, numRegions, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
+   elif testingOpts == "globalAlleles":
+      buckets = biogpu.correlation.pearson(kernel, ranges, testingOpts, num_alleles, numRegions, calcCombinations(num_alleles, numRegions), num_pyro_peaks, globalAlleles=alleles_c)
 
    print('Results:\n')
    for i in range(len(buckets)):
@@ -122,6 +129,7 @@ def handleArgs():
    parser.add_option("-f", "--file", dest="file", help="File containing parameters", default="config.cfg")
    parser.add_option("--primer", dest="primer", default="TTGGATCAC", help="Primer to use")
    parser.add_option("--numRegions", dest="numRegions", type="int", default=7, help="Number of ITS Regions to simulate")
+   parser.add_option("--testing", dest="testing", default="none", help="What testing options for profiling. Possible options are globalAlleles, sharedMem")
 
    (options, args) = parser.parse_args()
 
@@ -141,6 +149,7 @@ def handleArgs():
 
       forwardPrimer = config.get("params", "primer")
       dispSeq = config.get("params", "DispSeq")
+      testingOpts = config.get("params", "testing")
 
    else:
       #Use command line args
@@ -149,12 +158,17 @@ def handleArgs():
       dispSeq = options.DispSeq
       forwardPrimer = options.primer
       numRegions = options.numRegions
+      testingOpts = options.testing
+
+   if testingOpts not in ['none', 'globalAlleles', 'sharedMem']:
+      print "parameter \"testing\" needs to be one of none, globalAlleles, or sharedMem"
+      sys.exit()
 
 
    #print ("maxAlleles should be {0}\n".format(maxAlleles))
    #print ("numRegions should be {0}\n".format(numRegions))
 
-   return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions)
+   return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions, testingOpts)
 
 """
 Generates bucket pearson correlation value slice ranges
