@@ -10,9 +10,9 @@ from math import factorial
 # CUDA parameters that seem to work well. The number of threads per tile
 # (the tile_size) should be a power of 2 for the parallel reduction to
 # work right!
-def pearson(kernel, ranges, testingOpts, num_alleles, alleles_per_isolate,
+def pearson(kernel, ranges, memoryOpt, num_alleles, alleles_per_isolate,
       num_isolates, length_alleles, num_threads=16, num_blocks=64,
-      globalAlleles=None):
+      globalMem=None):
    pearson_cuda = kernel.get_function('pearson')
    reduction_cuda = kernel.get_function('reduction')
 
@@ -33,7 +33,7 @@ def pearson(kernel, ranges, testingOpts, num_alleles, alleles_per_isolate,
    # Do a kernel launch for each tile
    for tile_row in range(num_tiles):
       for tile_col in range(tile_row, num_tiles):
-         if testingOpts == "none":
+         if memoryOpt == "none":
             pearson_cuda(buckets_gpu.gpudata,
                         pycuda.driver.In(ranges_np), 
                         numpy.uint32(num_buckets),
@@ -46,10 +46,10 @@ def pearson(kernel, ranges, testingOpts, num_alleles, alleles_per_isolate,
                         numpy.uint32(length_alleles),
                         block=(num_threads, num_threads, 1),
                         grid=(num_blocks, num_blocks))
-         else:
+         elif memoryOpt == "globalMem" or memoryOpt == "texturedMem":
             pearson_cuda(buckets_gpu.gpudata,
                   pycuda.driver.In(ranges_np), 
-                  pycuda.driver.In(globalAlleles),
+                  pycuda.driver.In(globalMem),
                   numpy.uint32(num_buckets),
                   numpy.uint32(tile_size), 
                   numpy.uint32(tile_row), 
@@ -58,7 +58,6 @@ def pearson(kernel, ranges, testingOpts, num_alleles, alleles_per_isolate,
                   numpy.uint32(length_alleles),
                   block=(num_threads, num_threads, 1),
                   grid=(num_blocks, num_blocks))
-
 
 
          progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
