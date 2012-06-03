@@ -4,6 +4,7 @@ import numpy
 #import pycuda.autoinit
 import pycuda.gpuarray
 import pycuda.driver
+import pycuda.tools
 
 DEBUG = True
 
@@ -149,7 +150,6 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
       pycuda.driver.Context.pop()
 
    num_tile = 0
-
    # Do a kernel launch for each tile
    for tile_row in range(num_tiles):
       for tile_col in range(tile_row, num_tiles):
@@ -160,7 +160,7 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
          currContext.push()
 
          if DEBUG:
-            print("Pushed context onto device {0}({1})\n".format(
+            print("\nPushed context onto device {0}({1})\n".format(
                   pycuda.driver.Context.get_device().name(),
                   pycuda.driver.Context.get_device().pci_bus_id()))
 
@@ -206,9 +206,11 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
 
-#print('\rComputing correlations 100.000%')
-#sys.stdout.write('Merging buckets...\n')
-#sys.stdout.flush()
+   '''
+   print('\rComputing correlations 100.000%')
+   sys.stdout.write('Merging buckets...\n')
+   sys.stdout.flush()
+   '''
 
    for envNdx in range(len(gpuEnvs)):
       (cudaContext, cudaModule) = gpuEnvs[envNdx]
@@ -242,18 +244,20 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
                pycuda.driver.Context.get_device().name(),
                pycuda.driver.Context.get_device().pci_bus_id()))
 
-      #pycuda.driver.Context.pop()
+      pycuda.driver.Context.pop()
       cudaContext.detach()
+
+   #clear caches from GPU
+   pycuda.tools.clear_context_caches()
 
    # Merge the results of the reduction from the first column of the matrix.
    merged = [0 for bucket in range(num_buckets)]
 
-   for envNdx in range(len(gpuEnvs)):
-      for bucketNdx in range(num_buckets):
-          for tileNdx in range(tile_size):
-              bucket_index = ((tile_size * tile_size * bucketNdx) +
-                             (tile_size * tileNdx) + 0)
-              merged[bucketNdx] += bucketTotals[bucket_index]
+   for bucketNdx in range(num_buckets):
+      for tileNdx in range(tile_size):
+         bucket_index = ((tile_size * tile_size * bucketNdx) +
+                        (tile_size * tileNdx) + 0)
+         merged[bucketNdx] += bucketTotals[bucket_index]
 
    print('finished merging buckets...\n')
    return merged
