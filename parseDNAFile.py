@@ -101,15 +101,51 @@ def main():
    cudaSrc = cudaSrc + kernelFile.read()
    kernelFile.close()
 
-   cudaModule = pycuda.compiler.SourceModule(cudaSrc)
+   #init the pycuda driver and now GPU interfacing begins
+   pycuda.driver.init()
 
-   if DEBUG:
-      print('Calculating pearson correlation for all pairwise combinations ' +
-            'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
+   if (pycuda.driver.Device.count() == 1):
+      if DEBUG:
+         print("Detected a single GPU :(\n")
 
-   buckets = biogpu.correlation.pearson(cudaModule, ranges, memoryOpt,
-             num_alleles, numRegions, calcCombinations(num_alleles,
-             numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
+      cudaDevice = pycuda.driver.Device(0)
+      cudaContext = cudaDevice.make_context()
+      cudaModule = pycuda.compiler.SourceModule(cudaSrc)
+
+      buckets = biogpu.correlation.pearson(cudaModule, ranges, memoryOpt,
+                num_alleles, numRegions, calcCombinations(num_alleles,
+                numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
+
+      cudaContext.detach()
+
+   elif (pycuda.driver.Device.count() > 1):
+      if DEBUG:
+         print("Detected multiple GPUs!\n")
+
+      gpuEnvs = [(None, None)] * pycuda.driver.Device.count()
+
+      for envNdx in range(len(gpuEnvs)):
+         cudaDevice = pycuda.driver.Device(envNdx)
+         cudaContext = cudaDevice.make_context()
+         cudaModule = pycuda.compiler.SourceModule(cudaSrc)
+
+         gpuEnvs[envNdx] = (cudaContext, cudaModule)
+
+         if DEBUG:
+            print("Popping context from device {0}({1})\n".format(
+                  pycuda.driver.Context.get_device().name(),
+                  pycuda.driver.Context.get_device().pci_bus_id()))
+         pycuda.driver.Context.pop()
+
+      #cudaModule = pycuda.compiler.SourceModule(cudaSrc)
+
+      if DEBUG:
+         print('Calculating pearson correlation for all pairwise combinations ' +
+               'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
+
+      buckets = biogpu.correlation.multi_pearson(gpuEnvs, ranges, memoryOpt,
+                num_alleles, numRegions, calcCombinations(num_alleles,
+                numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
 
    print("Elapsed Time: {0}\n".format(time.time() - startTime))
    print('Results:\n')
