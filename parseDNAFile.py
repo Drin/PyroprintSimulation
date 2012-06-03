@@ -24,6 +24,7 @@ import itertools
 import numpy
 import math
 import re 
+import time
 from extract_allele import extractAlleles
 from optparse import OptionParser
 import ConfigParser
@@ -52,6 +53,8 @@ except:
 #16-23 CCTCTACTAGAGCG20(TCGA)TT
 
 def main():
+   startTime = time.time()
+
    if DEBUG:
       print("Configuring simulation...\n")
 
@@ -101,6 +104,8 @@ def main():
 
    buckets = biogpu.correlation.pearson(kernel, ranges, num_alleles, 
          numRegions, calcCombinations(num_alleles, numRegions), num_pyro_peaks)
+
+   print("Elapsed Time: {0}\n".format(time.time() - startTime))
 
    print('Results:\n')
    for i in range(len(buckets)):
