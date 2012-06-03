@@ -28,17 +28,15 @@ import time
 from extract_allele import extractAlleles
 from optparse import OptionParser
 import ConfigParser
-import pycuda.autoinit
 import pycuda.compiler
-import pycuda.gpuarray
 import pycuda.driver
 
 DEBUG = True
-TESTING = False
-KERNELFILES = {'none': 'biogpu/pearson.cu',
-               'globalMem': 'biogpu/ga_pearson.cu'} #,
-               #'sharedMem': 'biogpu/sh_pearson.cu',
-               #'texturedMem': 'biogput/text_pearson.cu'}
+CORE_KERNEL_FILE = "biogpu/kernels.cu"
+PEARSON_KERNEL_FILES = {'constantMem': 'biogpu/const_pearson.cu',
+                        'globalMem': 'biogpu/ga_pearson.cu'} #,
+                       #'sharedMem': 'biogpu/sh_pearson.cu',
+                       #'texturedMem': 'biogput/text_pearson.cu'}
 
 # detect gpu support
 gpu_support = False
@@ -76,48 +74,42 @@ def main():
    if DEBUG:
       print("Preparing buckets for pearson correlation slices...\n")
 
-   ranges = [(-1.000, 0.000), (0.000, 1.000)]
+   ranges = [(-1.000, 1.000)]
    bucketSlices = generateRanges(0.9900, 1.0000, 0.0001)
    ranges.extend([bucketSlice for bucketSlice in bucketSlices])
 
    if DEBUG:
       print('Preparing pyroprinted alleles for device constant memory...\n')
 
-   alleles_c = numpy.zeros(shape=(num_alleles, num_pyro_peaks), dtype=numpy.uint8, order='C')
+   alleleData_gpu = numpy.zeros(shape=(num_alleles, num_pyro_peaks), dtype=numpy.uint8, order='C')
    for alleleNdx in range(num_alleles):
-      numpy.put(alleles_c[alleleNdx], range(num_pyro_peaks), alleles[alleleNdx])
+      numpy.put(alleleData_gpu[alleleNdx], range(num_pyro_peaks), alleles[alleleNdx])
 
    if DEBUG:
       print("Loading CUDA kernel source code...\n")
 
-   kernel_file = KERNELFILES[memoryOpt]
+   pearson_kernel = PEARSON_KERNEL_FILES[memoryOpt]
 
-   kernelFile = open(os.path.join(os.getcwd(), kernel_file), 'r')
-   kernel = pycuda.compiler.SourceModule(kernelFile.read())
+   if DEBUG:
+      print("loading kernel file '{0}'\n".format(pearson_kernel))
+
+   kernelFile = open(os.path.join(os.getcwd(), CORE_KERNEL_FILE), 'r')
+   cudaSrc = kernelFile.read()
    kernelFile.close()
 
-   # default performance is to store alleles in constant memory
-   if memoryOpt == "none":
-      (const_ptr, size) = kernel.get_global("alleles")
+   kernelFile = open(os.path.join(os.getcwd(), pearson_kernel), 'r')
+   cudaSrc = cudaSrc + kernelFile.read()
+   kernelFile.close()
 
-      if DEBUG:
-         print(("Transferring {0} bytes of allele pyroprints into device " +
-            "constant memory...\n ").format(size))
-
-      pycuda.driver.memcpy_htod(const_ptr, alleles_c)
+   cudaModule = pycuda.compiler.SourceModule(cudaSrc)
 
    if DEBUG:
       print('Calculating pearson correlation for all pairwise combinations ' +
             'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
 
-   if memoryOpt == "none":
-      buckets = biogpu.correlation.pearson(kernel, ranges, memoryOpt,
-                num_alleles, numRegions, calcCombinations(num_alleles,
-                   numRegions), num_pyro_peaks, globalMem=None)
-   elif memoryOpt == "globalMem":
-      buckets = biogpu.correlation.pearson(kernel, ranges, memoryOpt,
-                num_alleles, numRegions, calcCombinations(num_alleles, numRegions),
-                num_pyro_peaks, globalMem=alleles_c)
+   buckets = biogpu.correlation.pearson(cudaModule, ranges, memoryOpt,
+             num_alleles, numRegions, calcCombinations(num_alleles,
+             numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
 
    print("Elapsed Time: {0}\n".format(time.time() - startTime))
    print('Results:\n')
@@ -140,9 +132,9 @@ def handleArgs():
    parser.add_option("-f", "--file", dest="file", help="File containing parameters", default="config.cfg")
    parser.add_option("--primer", dest="primer", default="TTGGATCAC", help="Primer to use")
    parser.add_option("--numRegions", dest="numRegions", type="int", default=7, help="Number of ITS Regions to simulate")
-   parser.add_option("--memory", dest="memory", default="none", help=("What " +
+   parser.add_option("--memory", dest="memory", default="constantMem", help=("What " +
                      "memory to store alleles in. Possible options are " +
-                     "'none', 'globalMem', 'sharedMem', 'texturedMem'"))
+                     "'constantMem', 'globalMem', 'sharedMem', 'texturedMem'"))
 
    (options, args) = parser.parse_args()
 
@@ -154,9 +146,6 @@ def handleArgs():
       if config.has_option("params", "maxAlleles"):
          maxAlleles = config.getint("params", "maxAlleles")
      
-      if TESTING:
-         maxAlleles = 4
-
       if config.has_option("params", "numRegions"):
          numRegions = config.getint("params", "numRegions")
 
@@ -173,8 +162,8 @@ def handleArgs():
       numRegions = options.numRegions
       memoryOpt = options.memory
 
-   if memoryOpt not in KERNELFILES:
-      print "parameter \"memory\" needs to be one of none, globalMem, or sharedMem"
+   if memoryOpt not in PEARSON_KERNEL_FILES:
+      print "parameter \"memory\" needs to be one of constantMem, globalMem, or sharedMem"
       sys.exit()
 
 

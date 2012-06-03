@@ -2,12 +2,13 @@
 #include <string.h>
 
 const int kMaxAllelesPerIsolate = 7;
-//const int kMaxAlleles = 28;         // Maximum number of different alleles
-//const int kMaxAlleleLength = 104;   // Maximum length of each allele
+const int kMaxAlleles = 28;         // Maximum number of different alleles
+const int kMaxAlleleLength = 104;   // Maximum length of each allele
+
+__constant__ uint8_t alleles[kMaxAlleles * kMaxAlleleLength];
 
 __global__ void pearson(uint64_t *buckets,
                         float *ranges, 
-                        uint8_t *alleles,
                         uint32_t num_ranges,
                         uint32_t tile_size, 
                         uint32_t tile_row, 
@@ -50,7 +51,7 @@ __global__ void pearson(uint64_t *buckets,
 
    // Compute the sums.
    for (int index = 0; index < length_alleles; ++index) {
-      uint8_t x = 0, y = 0;
+      uint16_t x = 0, y = 0;
 
       for (int alleleNdx = 0; alleleNdx < alleles_per_isolate; alleleNdx++) {
          x += alleles[i_allele_indices[alleleNdx] * length_alleles + index];
