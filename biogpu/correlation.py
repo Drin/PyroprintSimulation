@@ -78,9 +78,9 @@ def pearson(cudaModule, ranges, memoryOpt, num_alleles, alleles_per_isolate,
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
 
-#print('\rComputing correlations 100.000%')
-#sys.stdout.write('Merging buckets...\n')
-#sys.stdout.flush()
+   print('\rComputing correlations 100.000%')
+   sys.stdout.write('Merging buckets...\n')
+   sys.stdout.flush()
 
    # Do a parallel reduction to sum all the buckets element-wise.
    reduction_cuda(buckets_gpu.gpudata, numpy.uint32(num_buckets),
@@ -149,11 +149,12 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
 
       pycuda.driver.Context.pop()
 
-   num_tile = 0
+   tileNdx = 0
    # Do a kernel launch for each tile
    for tile_row in range(num_tiles):
       for tile_col in range(tile_row, num_tiles):
-         envNdx = num_tile % len(gpuEnvs)
+         envNdx = tileNdx % len(gpuEnvs)
+         tileNdx = tileNdx + 1
 
          (currContext, currModule) = gpuEnvs[envNdx]
 
@@ -206,11 +207,9 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
 
-   '''
    print('\rComputing correlations 100.000%')
    sys.stdout.write('Merging buckets...\n')
    sys.stdout.flush()
-   '''
 
    for envNdx in range(len(gpuEnvs)):
       (cudaContext, cudaModule) = gpuEnvs[envNdx]

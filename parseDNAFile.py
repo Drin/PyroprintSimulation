@@ -60,7 +60,7 @@ def main():
    if DEBUG:
       print("Configuring simulation...\n")
 
-   (dataDir, disp, primer, maxAlleles, numRegions, memoryOpt) = handleArgs()
+   (dataDir, disp, primer, maxAlleles, numRegions, memoryOpt, deviceId) = handleArgs()
 
    if DEBUG:
       print("Extracting allele information...\n")
@@ -104,20 +104,29 @@ def main():
    #init the pycuda driver and now GPU interfacing begins
    pycuda.driver.init()
 
-   if (pycuda.driver.Device.count() == 1):
+   if (pycuda.driver.Device.count() >= deviceId):
       if DEBUG:
-         print("Detected a single GPU :(\n")
+         print("using single GPU '{0}'\n".format(deviceId))
 
-      cudaDevice = pycuda.driver.Device(0)
+      cudaDevice = pycuda.driver.Device(deviceId)
       cudaContext = cudaDevice.make_context()
       cudaModule = pycuda.compiler.SourceModule(cudaSrc)
+
+      if DEBUG:
+         print('Calculating pearson correlation for all pairwise combinations ' +
+               'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
 
       buckets = biogpu.correlation.pearson(cudaModule, ranges, memoryOpt,
                 num_alleles, numRegions, calcCombinations(num_alleles,
                 numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
 
       cudaContext.detach()
+   else:
+      print("Error: invalid device Id '{0}'\n".format(deviceId))
+      sys.exit()
 
+   '''
+   Not sure why this doesn't work just yet. Commenting out for testing though
    elif (pycuda.driver.Device.count() > 1):
       if DEBUG:
          print("Detected multiple GPUs!\n")
@@ -137,8 +146,6 @@ def main():
                   pycuda.driver.Context.get_device().pci_bus_id()))
          pycuda.driver.Context.pop()
 
-      #cudaModule = pycuda.compiler.SourceModule(cudaSrc)
-
       if DEBUG:
          print('Calculating pearson correlation for all pairwise combinations ' +
                'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
@@ -146,6 +153,7 @@ def main():
       buckets = biogpu.correlation.multi_pearson(gpuEnvs, ranges, memoryOpt,
                 num_alleles, numRegions, calcCombinations(num_alleles,
                 numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
+   '''
 
    print("Elapsed Time: {0}\n".format(time.time() - startTime))
    print('Results:\n')
@@ -168,6 +176,7 @@ def handleArgs():
    parser.add_option("-f", "--file", dest="file", help="File containing parameters", default="config.cfg")
    parser.add_option("--primer", dest="primer", default="TTGGATCAC", help="Primer to use")
    parser.add_option("--numRegions", dest="numRegions", type="int", default=7, help="Number of ITS Regions to simulate")
+   parser.add_option("--device", dest="device", type="int", default=0, help="Selects the GPU to use for computation")
    parser.add_option("--memory", dest="memory", default="constantMem", help=("What " +
                      "memory to store alleles in. Possible options are " +
                      "'constantMem', 'globalMem', 'sharedMem', 'texturedMem'"))
@@ -181,13 +190,26 @@ def handleArgs():
 
       if config.has_option("params", "maxAlleles"):
          maxAlleles = config.getint("params", "maxAlleles")
+      else:
+         maxAlleles = options.maxAlleles
      
       if config.has_option("params", "numRegions"):
          numRegions = config.getint("params", "numRegions")
 
+      if config.has_option("params", "device"):
+         deviceId = config.getint("params", "device")
+      else:
+         deviceId = options.device
+
+
+      if config.has_option("params", "memory"):
+         memoryOpt = config.get("params", "memory")
+      else:
+         memoryOpt = options.memory
+
       forwardPrimer = config.get("params", "primer")
       dispSeq = config.get("params", "DispSeq")
-      memoryOpt = config.get("params", "memory")
+
 
    else:
       #Use command line args
@@ -197,6 +219,7 @@ def handleArgs():
       forwardPrimer = options.primer
       numRegions = options.numRegions
       memoryOpt = options.memory
+      deviceId = options.device
 
    if memoryOpt not in PEARSON_KERNEL_FILES:
       print "parameter \"memory\" needs to be one of constantMem, globalMem, or sharedMem"
@@ -207,7 +230,7 @@ def handleArgs():
       print ("maxAlleles should be {0}\n".format(maxAlleles))
       print ("numRegions should be {0}\n".format(numRegions))
 
-   return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions, memoryOpt)
+   return (dataPath, dispSeq, forwardPrimer, maxAlleles, numRegions, memoryOpt, deviceId)
 
 """
 Generates bucket pearson correlation value slice ranges
