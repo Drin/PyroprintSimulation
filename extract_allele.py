@@ -6,7 +6,7 @@ import re
 from optparse import OptionParser
 import ConfigParser
 
-DEBUG = False
+DEBUG = True
 
 '''
 A Method which extracts alleles from a given set of DNA sequences. An allele is

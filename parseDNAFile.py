@@ -26,12 +26,14 @@ import math
 import re 
 import time
 from extract_allele import extractAlleles
+from extract_allele import expandSequence
 from optparse import OptionParser
 import ConfigParser
 import pycuda.compiler
 import pycuda.driver
 
 DEBUG = True
+LEGACY = False
 CORE_KERNEL_FILE = "biogpu/kernels.cu"
 PEARSON_KERNEL_FILES = {'constantMem': 'biogpu/const_pearson.cu',
                         'globalMem': 'biogpu/ga_pearson.cu'} #,
@@ -55,8 +57,6 @@ except:
 #16-23 CCTCTACTAGAGCG20(TCGA)TT
 
 def main():
-   startTime = time.time()
-
    if DEBUG:
       print("Configuring simulation...\n")
 
@@ -78,52 +78,95 @@ def main():
    bucketSlices = generateRanges(0.9900, 1.0000, 0.0001)
    ranges.extend([bucketSlice for bucketSlice in bucketSlices])
 
-   if DEBUG:
-      print('Preparing pyroprinted alleles for device constant memory...\n')
+   startTime = time.time()
 
-   alleleData_gpu = numpy.zeros(shape=(num_alleles, num_pyro_peaks), dtype=numpy.uint8, order='C')
-   for alleleNdx in range(num_alleles):
-      numpy.put(alleleData_gpu[alleleNdx], range(num_pyro_peaks), alleles[alleleNdx])
+   if LEGACY:
+      print ("Running Legacy Code!\n")
 
-   if DEBUG:
-      print("Loading CUDA kernel source code...\n")
+      pycuda.driver.init()
+      if (pycuda.driver.Device.count() >= deviceId):
+         cudaDevice = pycuda.driver.Device(deviceId)
+         cudaContext = cudaDevice.make_context()
+       
+         #find all combinations
+         comboLimit = -1
+         numCombos = 0
+         allPyroPrints = []
+         allCombinations = combinations_with_replacement(alleles, 7)
 
-   pearson_kernel = PEARSON_KERNEL_FILES[memoryOpt]
+         if DEBUG:
+            print ("Pyroprinting Sequences...\n")
+        
+         for oneCombo in allCombinations:
+       
+            if comboLimit > 0 and numCombos >= comboLimit:
+               break 
+       
+            allPyroPrints.append(pyroprintData(oneCombo, expandSequence(disp)))
+            numCombos += 1
+           
+            # Writing out every number is too much I/O, it slows down pyroprinting a lot.
+            '''
+            if numCombos % 10 == 0:
+               sys.stdout.write("\rGenerating Combo %d" % numCombos)
+               sys.stdout.flush()
+            '''
+       
+         if DEBUG:
+            print "\n" + str(numCombos) + " Pyroprints Generated"
+         
+         buckets = biogpu.correlation.legacyPearson(allPyroPrints, allPyroPrints, ranges)
+      
+         cudaContext.detach()
 
-   if DEBUG:
-      print("loading kernel file '{0}'\n".format(pearson_kernel))
-
-   kernelFile = open(os.path.join(os.getcwd(), CORE_KERNEL_FILE), 'r')
-   cudaSrc = kernelFile.read()
-   kernelFile.close()
-
-   kernelFile = open(os.path.join(os.getcwd(), pearson_kernel), 'r')
-   cudaSrc = cudaSrc + kernelFile.read()
-   kernelFile.close()
-
-   #init the pycuda driver and now GPU interfacing begins
-   pycuda.driver.init()
-
-   if (pycuda.driver.Device.count() >= deviceId):
-      if DEBUG:
-         print("using single GPU '{0}'\n".format(deviceId))
-
-      cudaDevice = pycuda.driver.Device(deviceId)
-      cudaContext = cudaDevice.make_context()
-      cudaModule = pycuda.compiler.SourceModule(cudaSrc)
-
-      if DEBUG:
-         print('Calculating pearson correlation for all pairwise combinations ' +
-               'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
-
-      buckets = biogpu.correlation.pearson(cudaModule, ranges, memoryOpt,
-                num_alleles, numRegions, calcCombinations(num_alleles,
-                numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
-
-      cudaContext.detach()
    else:
-      print("Error: invalid device Id '{0}'\n".format(deviceId))
-      sys.exit()
+      if DEBUG:
+         print('Preparing pyroprinted alleles for device constant memory...\n')
+
+      alleleData_gpu = numpy.zeros(shape=(num_alleles, num_pyro_peaks), dtype=numpy.uint8, order='C')
+      for alleleNdx in range(num_alleles):
+         numpy.put(alleleData_gpu[alleleNdx], range(num_pyro_peaks), alleles[alleleNdx])
+
+      if DEBUG:
+         print("Loading CUDA kernel source code...\n")
+
+      pearson_kernel = PEARSON_KERNEL_FILES[memoryOpt]
+
+      if DEBUG:
+         print("loading kernel file '{0}'\n".format(pearson_kernel))
+
+      kernelFile = open(os.path.join(os.getcwd(), CORE_KERNEL_FILE), 'r')
+      cudaSrc = kernelFile.read()
+      kernelFile.close()
+
+      kernelFile = open(os.path.join(os.getcwd(), pearson_kernel), 'r')
+      cudaSrc = cudaSrc + kernelFile.read()
+      kernelFile.close()
+
+      #init the pycuda driver and now GPU interfacing begins
+      pycuda.driver.init()
+
+      if (pycuda.driver.Device.count() >= deviceId):
+         if DEBUG:
+            print("using single GPU '{0}'\n".format(deviceId))
+
+         cudaDevice = pycuda.driver.Device(deviceId)
+         cudaContext = cudaDevice.make_context()
+         cudaModule = pycuda.compiler.SourceModule(cudaSrc)
+
+         if DEBUG:
+            print('Calculating pearson correlation for all pairwise combinations ' +
+                  'for {0} generated isolates...\n'.format(calcCombinations(num_alleles, numRegions)))
+
+         startTime = time.time()
+         buckets = biogpu.correlation.pearson(cudaModule, ranges, memoryOpt,
+                   num_alleles, numRegions, calcCombinations(num_alleles,
+                   numRegions), num_pyro_peaks, alleleData=alleleData_gpu)
+
+         cudaContext.detach()
+      else:
+         print("Error: invalid device Id '{0}'\n".format(deviceId))
+         sys.exit()
 
    '''
    Not sure why this doesn't work just yet. Commenting out for testing though
@@ -252,6 +295,92 @@ replacement) of numAlleles and numRegions.
 def calcCombinations(numAlleles, numRegions):
    return (math.factorial(numAlleles + numRegions - 1)/
           (math.factorial(numRegions) * math.factorial(numAlleles - 1)))
+
+'''
+This is old legacy code for the purposes of testing current implementation against old implementation.
+'''
+def pyroprintData(oneCombo, dispSeq):
+   sequence = oneCombo
+   
+   #Saved heights from all 7 sequences
+   pyroData = [[],[],[],[],[],[],[]]
+   #Final heights
+   height = []
+   #Current sequence position
+   seqCount = 0
+   #Current disposition
+   dispCount = 0
+   #Current height
+   pyroCount = 0
+   #Length of sequences
+   length = [len(sequence[0]), len(sequence[1]), len(sequence[2]), len(sequence[3]), len(sequence[4]), len(sequence[5]), len(sequence[6])]
+   #Sequence Counter
+   t=0
+   
+   #Go through the 7 sequences and run through the disposition sequence getting the heights
+   while t < 7:
+      while seqCount < length[t]:
+         if sequence[t][seqCount] == dispSeq[dispCount]:
+            pyroCount += 1
+            seqCount += 1
+            if seqCount == length[t]:
+               pyroData[t].append(pyroCount)
+         elif (sequence[t][seqCount] != 'A') & (sequence[t][seqCount] != 'T') & (sequence[t][seqCount] != 'C') & (sequence[t][seqCount] != 'G'):
+            seqCount += 1
+            dispCount += 1
+            pyroData[t].append(pyroCount)
+         else:
+            pyroData[t].append(pyroCount)
+            pyroCount = 0
+            dispCount += 1
+      seqCount = 0
+      dispCount = 0
+      pyroCount = 0
+      t += 1
+   
+   seqCount = 0
+
+   #Get the max length of the heights (since they can be different - finish quicker/slower)
+   maxVal = max(len(pyroData[0]),len(pyroData[1]),len(pyroData[2]),len(pyroData[3]),len(pyroData[4]),len(pyroData[5]),len(pyroData[6]))
+   
+   #Pad the heights that do not have 0's that need them for adding (to make all the lengths the same)
+   x=0
+   while x < 7:
+      t = len(pyroData[x])
+      while (len(dispSeq) - t) > 0:
+         pyroData[x].append(0)
+         t += 1
+      x += 1
+   
+   #Get the final heights
+   while seqCount < len(dispSeq):
+      height.append( int(pyroData[0][seqCount]) + int(pyroData[1][seqCount]) +
+                     int(pyroData[2][seqCount]) + int(pyroData[3][seqCount]) + 
+                     int(pyroData[4][seqCount]) + int(pyroData[5][seqCount]) + 
+                     int(pyroData[6][seqCount]))
+      seqCount += 1
+   
+   return height
+
+'''
+More of Bob Legacy Code
+'''
+def combinations_with_replacement(iterable, r):
+   # combinations_with_replacement('ABC', 2) --> AA AB AC BB BC CC
+   pool = tuple(iterable)
+   n = len(pool)
+   if not n and r:
+      return
+   indices = [0] * r
+   yield tuple(pool[i] for i in indices)
+   while True:
+      for i in reversed(range(r)):
+         if indices[i] != n - 1:
+            break
+      else:
+         return
+      indices[i:] = [indices[i] + 1] * (r - i)
+      yield tuple(pool[i] for i in indices)
 
 '''
 If this file is called as a main file, then run the following
