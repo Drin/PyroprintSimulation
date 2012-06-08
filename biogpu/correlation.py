@@ -74,9 +74,11 @@ def pearson(cudaModule, ranges, memoryOpt, num_alleles, alleles_per_isolate,
                   grid=(num_blocks, num_blocks))
 
 
+         '''
          progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
+         '''
 
    print('\rComputing correlations 100.000%')
    sys.stdout.write('Merging buckets...\n')
@@ -203,9 +205,11 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
 
          pycuda.driver.Context.pop()
 
+         '''
          progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
+         '''
 
    print('\rComputing correlations 100.000%')
    sys.stdout.write('Merging buckets...\n')
