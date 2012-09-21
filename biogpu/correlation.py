@@ -13,7 +13,7 @@ DEBUG = True
 # work right!
 def pearson(cudaModule, ranges, memoryOpt, num_alleles, alleles_per_isolate,
       num_isolates, length_alleles, alleleData=None, num_threads=16,
-      num_blocks=64):
+      num_blocks=32):
    pearson_cuda = cudaModule.get_function('pearson')
    reduction_cuda = cudaModule.get_function('reduction')
 
@@ -74,11 +74,9 @@ def pearson(cudaModule, ranges, memoryOpt, num_alleles, alleles_per_isolate,
                   grid=(num_blocks, num_blocks))
 
 
-         '''
          progress = (tile_row * num_tiles + tile_col) * 100.0 / (num_tiles * num_tiles)
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
-         '''
 
    print('\rComputing correlations 100.000%')
    sys.stdout.write('Merging buckets...\n')
@@ -151,6 +149,7 @@ def multi_pearson(gpuEnvs, ranges, memoryOpt, num_alleles, alleles_per_isolate,
 
       pycuda.driver.Context.pop()
 
+#TODO
    tileNdx = 0
    # Do a kernel launch for each tile
    for tile_row in range(num_tiles):

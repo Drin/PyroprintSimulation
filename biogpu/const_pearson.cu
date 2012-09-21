@@ -24,23 +24,32 @@ __global__ void pearson(uint64_t *buckets,
    uint32_t i = blockIdx.x * blockDim.x + threadIdx.x; // column
    uint32_t j = blockIdx.y * blockDim.y + threadIdx.y; // row
 
+   uint32_t abs_i = tile_col * tile_size + i;
+   uint32_t abs_j = tile_row * tile_size + j;
+
    // Only compute values inside the bounds of the matrix.
    // And we don't want to compare isolates with themselves, or any comparisons
    // of a lower-numberes isolate to a higher-numbered one. Each pair of 
    // isolates (order doesn't matter) will only be compared once. This will
    // cause divergence only in the warps that lie along the main diagonal
    // of the comparison matrix.
-   if (tile_col * tile_size + i >= num_isolates ||
-       tile_row * tile_size + j >= num_isolates ||
-       tile_col * tile_size + i <= tile_row * tile_size + j)
+   if (abs_i >= num_isolates || abs_j >= num_isolates)
       return;
+   if (abs_i <= abs_j)
+      return;
+   //if (tile_col * tile_size + i >= num_isolates ||
+   //    tile_row * tile_size + j >= num_isolates ||
+   //    tile_col * tile_size + i <= tile_row * tile_size + j)
+   //   return;
 
 
    // Generate isolate |i_abs| and |j_abs|
    uint8_t i_allele_indices[kMaxAllelesPerIsolate]; 
    uint8_t j_allele_indices[kMaxAllelesPerIsolate]; 
-   get_isolate(tile_col * tile_size + i, i_allele_indices, num_alleles, alleles_per_isolate);
-   get_isolate(tile_row * tile_size + j, j_allele_indices, num_alleles, alleles_per_isolate);
+   get_isolate(abs_i, i_allele_indices, num_alleles, alleles_per_isolate);
+   get_isolate(abs_j, j_allele_indices, num_alleles, alleles_per_isolate);
+   //get_isolate(tile_col * tile_size + i, i_allele_indices, num_alleles, alleles_per_isolate);
+   //get_isolate(tile_row * tile_size + j, j_allele_indices, num_alleles, alleles_per_isolate);
 
    // Initialize accumulators and the result.
    float sum_x = 0, sum_y = 0, sum_x2 = 0, sum_y2 = 0, sum_xy = 0;

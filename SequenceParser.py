@@ -1,12 +1,17 @@
+#!/usr/bin/python -tt
+
 import sys
 import os
 import itertools
 import math
 import re 
-from optparse import OptionParser
-import ConfigParser
 
-DEBUG = True
+
+NUCL_COMPL = {'A' : 'T',
+              'T' : 'A',
+              'C' : 'G',
+              'G' : 'C',
+             }
 
 '''
 A Method which extracts alleles from a given set of DNA sequences. An allele is
@@ -16,7 +21,6 @@ as pyroprints (histograms). Biologically speaking, an allele suggests a genetic
 indication of a different strain (I think?).
 '''
 def extractAlleles(dataDir, disp, primer, numIsolates):
-
    #Expand an abbreviated "dispensation sequence"
    #e.g. 2(ATCG) expands to ATCGATCG
    dispSeq = expandSequence(disp)
@@ -45,25 +49,24 @@ def extractAlleles(dataDir, disp, primer, numIsolates):
             alleleFiles.append(seqFile)
             allelePeaks.append(seqPeaks)
 
-   if DEBUG:
+   if ('DEBUG' in os.environ):
       for alleleFile, allele, peak in map(None, alleleFiles, alleles, allelePeaks):
          print "allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(allele, alleleFile, peak)
 
    return (allelePeaks, len(allelePeaks), len(dispSeq))
 
-
-def findSequenceFiles(dataDir):
+def findSequenceFiles(data_path):
    validSequenceFiles = []
-   allSequenceFiles = os.listdir(dataDir)
+   allSequenceFiles = os.listdir(data_path)
 
    for entry in allSequenceFiles:
-      if os.path.isdir(dataDir + "/" + entry):
-         for subEntry in os.listdir(dataDir + "/" + entry):
+      if os.path.isdir(data_path + "/" + entry):
+         for subEntry in os.listdir(data_path + "/" + entry):
             allSequenceFiles.append(entry + "/" + subEntry)
 
-      elif os.path.isfile(dataDir + "/" + entry):
+      elif os.path.isfile(data_path + "/" + entry):
          if entry.find(".seq") > 0 or entry.find(".txt") > 0:
-            validSequenceFiles.append(dataDir + entry)
+            validSequenceFiles.append(data_path + entry)
 
    return validSequenceFiles 
 
@@ -130,15 +133,7 @@ def extractFileSequences(sequenceFiles):
    return allSequences
 
 def complement(char):
-   if (char == 'A'):
-      return 'T'
-   elif (char == 'T'):
-      return 'A'
-   elif (char == 'C'):
-      return 'G'
-   elif (char == 'G'):
-      return 'C'
-   return char 
+   return NUCL_COMPL.get(char.upper())
 
 def reverseComplSeq(seq):
    reverseCompl = ""
@@ -150,29 +145,38 @@ def reverseComplSeq(seq):
 
 def reverseSeq(seq):
    reverseSeq = ""
+
    for char in seq:
       reverseSeq = char + reverseSeq
 
    return reverseSeq
 
-# Builds the whole dispensation order string from the string seqExp
-# seqExp should be in the format of [StartSeq](NumRepeat)[RepeatedSeq]
-def expandSequence(seqExp):
-   seq = re.findall('[a-zA-Z]+|\d+\([a-zA-Z]+\)', seqExp)
+################################################################################
+#
+# This method expands the abbreviated DNA sequence short_seq into a
+# verbose/explicit DNA sequence. An abbreviated DNA sequence is a sequence
+# where contiguous repeats (e.g. ATGATGATG) are shortened to
+# '<numRepeats>(<repeatSeq>)' (e.g. 3(ATG)).
+#
+################################################################################
+def expandSequence(short_seq):
+   expanded_seq = ''
+   seq = re.findall('[a-zA-Z]+|\d+\([a-zA-Z]+\)', short_seq)
 
-   complete = ''
    for item in seq:
-      if re.match('\d',item):
-         loopinfo = re.split('\(|\)',item)
-         count = int(loopinfo[0])
-         chars = loopinfo[1]
-         i = 0
-         while i < count:
-            complete += chars
-            i += 1
+      if (re.match('\d', item)):
+         loopinfo = re.split('\(|\)', item)
+
+         repeat_count = int(loopinfo[0])
+         repeat_seq = loopinfo[1]
+
+         for repeat in range(repeat_count):
+            expanded_seq += repeat_seq
+
       else:
-         complete += item
-   return complete
+         expanded_seq += item
+
+   return expanded_seq
 
 if __name__ == '__main__':
    extractAlleles()
