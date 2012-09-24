@@ -6,6 +6,7 @@ import itertools
 import math
 import re 
 
+from Allele import Allele
 
 NUCL_COMPL = {'A' : 'T',
               'T' : 'A',
@@ -20,40 +21,39 @@ parameters. These alleles can be represented as DNA sequences, or alternatively
 as pyroprints (histograms). Biologically speaking, an allele suggests a genetic
 indication of a different strain (I think?).
 '''
-def extractAlleles(dataDir, disp, primer, numIsolates):
+def extractAlleles(configuration):
    #Expand an abbreviated "dispensation sequence"
    #e.g. 2(ATCG) expands to ATCGATCG
-   dispSeq = expandSequence(disp)
+   expanded_seq = expandSequence(configuration.get('disp'))
 
    #Find files that contain actual DNA sequence data
-   validSequenceFiles = findSequenceFiles(dataDir)
+   validSequenceFiles = findSequenceFiles(configuration.get('data_path'))
    #From DNA sequence files, extract the actual DNA sequences
    allSequences = extractFileSequences(validSequenceFiles)
 
    #pyroprint the DNA sequences to discover alleles amongst all of the given
    #DNA. seqList is a tuple containing:
    #(<fileName>, <allele DNA sequence>, <allele histogram>)
-   seqList = pyroprintSequences(allSequences, dispSeq, primer)
+   seqList = pyroprintSequences(allSequences, expanded_seq, configuration)
 
-   alleles = []
-   alleleFiles = []
-   allelePeaks = []
+   if ('DEBUG' in os.environ):
+      print ("numAlleles: {0}\n".format(configuration.get('alleles')))
 
-   print ("numAlleles: {0}\n".format(numIsolates))
+   alleles = set()
 
    # find unique strings
    for (seqFile, seqStr, seqPeaks) in seqList:
-      if (numIsolates == -1 or len(alleles) < numIsolates):
-         if (seqStr not in alleles):
-            alleles.append(seqStr)
-            alleleFiles.append(seqFile)
-            allelePeaks.append(seqPeaks)
+      if ((configuration.get('alleles') == -1 or
+          len(alleles) < configuration.get('alleles')) and
+          seqStr not in alleles):
+         alleles.add(Allele(seqStr, seqFile, seqPeaks))
 
    if ('DEBUG' in os.environ):
-      for alleleFile, allele, peak in map(None, alleleFiles, alleles, allelePeaks):
-         print "allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(allele, alleleFile, peak)
+      for allele in alleles:
+         print ("allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(
+                allele.sequence, allele.src_file, allele.pyroprint))
 
-   return (allelePeaks, len(allelePeaks), len(dispSeq))
+   return (alleles, len(expanded_seq))
 
 def findSequenceFiles(data_path):
    validSequenceFiles = []
@@ -71,32 +71,36 @@ def findSequenceFiles(data_path):
    return validSequenceFiles 
 
 
-def pyroprintSequences(allSequences, dispSeq, primer):
+def pyroprintSequences(allSequences, dispSeq, config):
    seqList = []
 
+   pyro_len = config.get('pyro_len') if config.get('pyro_len') > 0 else len(dispSeq)
+
    for (seqFile, seq) in allSequences:
-      peakVals = [0] * len(dispSeq)
+      peakVals = [0] * pyro_len
       peakNdx = 0
       seqCount = 0
       dispCount = 0
 
-      if primer not in seq and primer not in reverseComplSeq(seq):
+      if (config.get('primer') not in seq and
+          config.get('primer') not in reverseComplSeq(seq)):
          continue
 
-      primerLoc = seq.find(primer)
+      primerLoc = seq.find(config.get('primer'))
       if (primerLoc < 0):
          seq = reverseComplSeq(seq)
-         primerLoc = seq.find(primer)
+         primerLoc = seq.find(config.get('primer'))
 
-      while (dispCount < len(dispSeq)):
-         if (seq[primerLoc+len(primer)+seqCount] == dispSeq[dispCount]):
+      while (dispCount < pyro_len):
+         if (seq[primerLoc + len(config.get('primer')) + seqCount] ==
+             dispSeq[dispCount]):
             seqCount += 1
             peakVals[peakNdx] += 1
 
-         elif ((seq[primerLoc+len(primer)+seqCount] != 'A') and
-               (seq[primerLoc+len(primer)+seqCount] != 'T') and
-               (seq[primerLoc+len(primer)+seqCount] != 'C') and
-               (seq[primerLoc+len(primer)+seqCount] != 'G')):
+         elif ((seq[primerLoc+len(config.get('primer'))+seqCount] != 'A') and
+               (seq[primerLoc+len(config.get('primer'))+seqCount] != 'T') and
+               (seq[primerLoc+len(config.get('primer'))+seqCount] != 'C') and
+               (seq[primerLoc+len(config.get('primer'))+seqCount] != 'G')):
             seqCount += 1
             dispCount += 1
             peakNdx += 1
@@ -105,7 +109,9 @@ def pyroprintSequences(allSequences, dispSeq, primer):
             dispCount += 1
             peakNdx += 1
 
-      seqList.append((seqFile, seq[primerLoc+len(primer):primerLoc+len(primer)+seqCount], peakVals))
+      seqList.append((seqFile, seq[primerLoc + len(config.get('primer')) :
+                                   primerLoc + len(config.get('primer')) + seqCount],
+                                   peakVals))
    return seqList
 
 def extractFileSequences(sequenceFiles):
