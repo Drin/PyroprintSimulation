@@ -121,9 +121,13 @@ class PyroprintSimulation(object):
          print("Aborting attempt to run simulation before fully prepared.")
          return
 
-      task_queue = Queue.Queue()
-      progress_queue = Queue.Queue()
       pycuda.driver.init()
+
+      sim_threads = []
+      sim_thread_num = (min(self.config.get('num_gpus'), pycuda.driver.Device.count()) or
+                        pycuda.driver.Device.count())
+      task_queues = [Queue.Queue() for thread_num in range(sim_thread_num)]
+      progress_queue = Queue.Queue()
 
       if ('DEBUG' in os.environ):
          print("Num expected isolates: {0}".format(self.num_isolates))
@@ -145,16 +149,17 @@ class PyroprintSimulation(object):
 
       tile_size = num_threads * num_blocks
       num_tiles = self.num_isolates / tile_size + 1
-      sim_threads = []
-      sim_thread_num = (min(self.config.get('num_gpus'), pycuda.driver.Device.count()) or
-                        pycuda.driver.Device.count())
+      num_task = 0
                             
       for tile_row in range(num_tiles):
          for tile_col in range(tile_row, num_tiles):
             shape = {'threads': num_threads, 'blocks': num_blocks}
             config = {'num': num_tiles, 'row': tile_row, 'col': tile_col}
 
-            task_queue.put({'config': config, 'shape': shape})
+            if ('DEBUG' in os.environ):
+               print("adding task for thread %d" %
+                     (num_task % sim_thread_num))
+            task_queues[num_task % sim_thread_num].put({'config': config, 'shape': shape})
 
       buckets = [0 for count in range(len(self.ranges))]
       task_result = {'lock': threading.RLock(), 'buckets': buckets}
@@ -163,8 +168,8 @@ class PyroprintSimulation(object):
          sys.stdout.write('Starting thread {0}...\n'.format(thread_ndx))
          sys.stdout.flush()
          sim_thread = SimulationThread(thread_ndx, tile_size, num_threads,
-                                       num_blocks, task_queue, progress_queue,
-                                       task_result, self)
+                                       num_blocks, task_queues[thread_ndx],
+                                       progress_queue, task_result, self)
          sim_thread.start()
          sim_threads.append(sim_thread)
 
