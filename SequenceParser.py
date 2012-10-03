@@ -28,6 +28,8 @@ def extractAlleles(configuration):
 
    #Find files that contain actual DNA sequence data
    validSequenceFiles = findSequenceFiles(configuration.get('data_path'))
+   if ('DEBUG' in os.environ):
+      print("{0} sequence files".format(len(validSequenceFiles)))
    #From DNA sequence files, extract the actual DNA sequences
    allSequences = extractFileSequences(validSequenceFiles)
 

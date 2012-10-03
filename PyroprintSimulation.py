@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import math
+import copy
 
 import Queue
 import numpy
@@ -126,7 +127,20 @@ class PyroprintSimulation(object):
 
       if ('DEBUG' in os.environ):
          print("Num expected isolates: {0}".format(self.num_isolates))
+         '''
+         pyro1 = copy.deepcopy(self.alleles[0].pyroprint)
+         pyro2 = copy.deepcopy(self.alleles[5].pyroprint)
 
+         for x in range(1,7):
+            for y in range(self.pyro_len):
+               pyro1[y] += self.alleles[x].pyroprint[y]
+               pyro2[y] += self.alleles[x+5].pyroprint[y]
+
+         print("Pyro1: {0}\nPyro2: {1}".format(pyro1, pyro2))
+         '''
+
+      if ('NO_CUDA' in os.environ):
+         sys.exit(0)
       startTime = time.time()
 
       tile_size = num_threads * num_blocks
