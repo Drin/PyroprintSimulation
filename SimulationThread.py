@@ -95,9 +95,6 @@ class SimulationThread(threading.Thread):
 
          self.task_queue.task_done()
 
-      #reduce results from GPU buckets into cpu bucket totals
-      self.task_result['lock'].acquire()
-
       # Do a parallel reduction to sum all the buckets element-wise.
       reduction_kernel = cuda_module.get_function('reduction')
       reduction_kernel(buckets_gpu.gpudata,
@@ -109,14 +106,19 @@ class SimulationThread(threading.Thread):
       # Copy buckets back from GPU.
       buckets_gpu.get(buckets_cpu)
 
+      #reduce results from GPU buckets into cpu bucket totals
+      #self.task_result['lock'].acquire()
+
       # Merge the results of the reduction from the first column of the matrix.
+      # Merge results of reduction into the given array. Each thread has its
+      # own result array to use
       for bucketNdx in range(len(self.pyro_sim.ranges)):
           for tileNdx in range(self.tile_size):
               bucket_index = ((self.tile_size * self.tile_size * bucketNdx) +
                               (tileNdx * self.tile_size))
-              self.task_result['buckets'][bucketNdx] += buckets_cpu[bucket_index]
+              self.task_result[bucketNdx] += buckets_cpu[bucket_index]
 
-      self.task_result['lock'].release()
+      #self.task_result['lock'].release()
 
       #pop context so there are no problems of the GPU being used even after
       #this thread is finished

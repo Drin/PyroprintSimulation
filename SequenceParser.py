@@ -94,6 +94,8 @@ def pyroprintSequences(allSequences, dispSeq, config):
          primerLoc = seq.find(config.get('primer'))
 
       while (dispCount < pyro_len):
+         if ('DEBUG' in os.environ):
+            print "dispSeq: {0}".format(dispSeq)
          if (seq[primerLoc + len(config.get('primer')) + seqCount] ==
              dispSeq[dispCount]):
             seqCount += 1

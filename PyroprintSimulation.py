@@ -127,6 +127,8 @@ class PyroprintSimulation(object):
       sim_thread_num = (min(self.config.get('num_gpus'), pycuda.driver.Device.count()) or
                         pycuda.driver.Device.count())
       task_queues = [Queue.Queue() for thread_num in range(sim_thread_num)]
+      task_results = [[0 for count in range(len(self.ranges))] for thread_num
+                      in range(sim_thread_num)]
       progress_queue = Queue.Queue()
 
       if ('DEBUG' in os.environ):
@@ -160,21 +162,30 @@ class PyroprintSimulation(object):
                print("adding task for thread %d" %
                      (num_task % sim_thread_num))
             task_queues[num_task % sim_thread_num].put({'config': config, 'shape': shape})
+            num_task += 1
 
       buckets = [0 for count in range(len(self.ranges))]
-      task_result = {'lock': threading.RLock(), 'buckets': buckets}
+      #task_result = {'lock': threading.RLock(), 'buckets': buckets}
 
+      # start each thread
       for thread_ndx in range(sim_thread_num):
          sys.stdout.write('Starting thread {0}...\n'.format(thread_ndx))
          sys.stdout.flush()
          sim_thread = SimulationThread(thread_ndx, tile_size, num_threads,
                                        num_blocks, task_queues[thread_ndx],
-                                       progress_queue, task_result, self)
+                                       progress_queue,
+                                       task_results[thread_ndx], self)
          sim_thread.start()
          sim_threads.append(sim_thread)
 
+      # wait for each thread to finish
       for thread in sim_threads:
          thread.join()
+
+      # aggregate results from each thread
+      for result in task_results:
+         for ndx in range(len(result)):
+            buckets[ndx] += result[ndx]
 
       if ('TIMED' in os.environ):
          print("Elapsed Time: {0}\n".format(time.time() - startTime))
