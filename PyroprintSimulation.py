@@ -158,9 +158,11 @@ class PyroprintSimulation(object):
             shape = {'threads': num_threads, 'blocks': num_blocks}
             config = {'num': num_tiles, 'row': tile_row, 'col': tile_col}
 
+            '''
             if ('DEBUG' in os.environ):
                print("adding task for thread %d" %
                      (num_task % sim_thread_num))
+            '''
             task_queues[num_task % sim_thread_num].put({'config': config, 'shape': shape})
             num_task += 1
 

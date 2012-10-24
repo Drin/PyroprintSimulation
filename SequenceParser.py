@@ -12,6 +12,7 @@ NUCL_COMPL = {'A' : 'T',
               'T' : 'A',
               'C' : 'G',
               'G' : 'C',
+              'N' : 'N',
              }
 
 '''
@@ -68,7 +69,7 @@ def findSequenceFiles(data_path):
 
       elif os.path.isfile(data_path + "/" + entry):
          if entry.find(".seq") > 0 or entry.find(".txt") > 0:
-            validSequenceFiles.append(data_path + entry)
+            validSequenceFiles.append(os.path.join(data_path, entry))
 
    return validSequenceFiles 
 
@@ -94,8 +95,7 @@ def pyroprintSequences(allSequences, dispSeq, config):
          primerLoc = seq.find(config.get('primer'))
 
       while (dispCount < pyro_len):
-         if ('DEBUG' in os.environ):
-            print "dispSeq: {0}".format(dispSeq)
+         #if ('DEBUG' in os.environ): print "dispSeq: {0}".format(dispSeq)
          if (seq[primerLoc + len(config.get('primer')) + seqCount] ==
              dispSeq[dispCount]):
             seqCount += 1

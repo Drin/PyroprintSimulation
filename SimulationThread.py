@@ -88,10 +88,12 @@ class SimulationThread(threading.Thread):
                         block = (shape['threads'], shape['threads'], 1),
                         grid  = (shape['blocks'],  shape['blocks']))
 
+         '''
          progress = ((config['row'] * config['num'] + config['col']) * 100.0 /
                      (config['num'] * config['num']))
          sys.stdout.write('\rComputing correlations %.3f%%' % progress)
          sys.stdout.flush()
+         '''
 
          self.task_queue.task_done()
 
