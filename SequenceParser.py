@@ -6,7 +6,7 @@ import itertools
 import math
 import re 
 
-from Allele import Allele
+from Sequence import Sequence
 
 NUCL_COMPL = {'A' : 'T',
               'T' : 'A',
@@ -42,21 +42,24 @@ def extractAlleles(configuration):
    if ('DEBUG' in os.environ):
       print ("numAlleles: {0}\n".format(configuration.get('alleles')))
 
-   alleles = set()
+   uniqueSeqs = set()
 
    # find unique strings
-   for (seqFile, seqStr, seqPeaks) in seqList:
+   for seq_obj in seqList:
+      (seqFile, seqStr, seqPeaks) = (seq_obj.src_file, seq_obj.allele,
+                                     seq_obj.pyro)
+
       if ((configuration.get('alleles') == -1 or
-          len(alleles) < configuration.get('alleles')) and
-          seqStr not in alleles):
-         alleles.add(Allele(seqStr, seqFile, seqPeaks))
+          len(uniqueSeqs) < configuration.get('alleles')) and
+          seqStr not in uniqueSeqs):
+         uniqueSeqs.add(seq_obj)
 
    if ('DEBUG' in os.environ):
-      for allele in alleles:
+      for seq_obj in uniqueSeqs:
          print ("allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(
-                allele.sequence, allele.src_file, allele.pyroprint))
+                seq_obj.sequence, seq_obj.src_file, seq_obj.pyro))
 
-   return (alleles, len(expanded_seq))
+   return (uniqueSeqs, len(expanded_seq))
 
 def findSequenceFiles(data_path):
    validSequenceFiles = []
@@ -74,16 +77,18 @@ def findSequenceFiles(data_path):
    return validSequenceFiles 
 
 
+'''
+   Returns the same list passed in (allSequences) but with each sequence object
+   having an additional field set -- pyroprint.
+'''
 def pyroprintSequences(allSequences, dispSeq, config):
-   seqList = []
-
    pyro_len = config.get('pyro_len') if config.get('pyro_len') > 0 else len(dispSeq)
 
-   for (seqFile, seq) in allSequences:
+   for seq_obj in allSequences:
+      (seqFile, seq) = (seq_obj.src_file, seq_obj.seq)
+
       peakVals = [0] * pyro_len
-      peakNdx = 0
-      seqCount = 0
-      dispCount = 0
+      (peakNdx, seqCount, dispCount) = (0, 0, 0)
 
       if (config.get('primer') not in seq and
           config.get('primer') not in reverseComplSeq(seq)):
@@ -94,17 +99,17 @@ def pyroprintSequences(allSequences, dispSeq, config):
          seq = reverseComplSeq(seq)
          primerLoc = seq.find(config.get('primer'))
 
+      primer_end = primerLoc + len(config.get('primer'))
+
       while (dispCount < pyro_len):
-         #if ('DEBUG' in os.environ): print "dispSeq: {0}".format(dispSeq)
-         if (seq[primerLoc + len(config.get('primer')) + seqCount] ==
-             dispSeq[dispCount]):
+         if (seq[primer_end + seqCount] == dispSeq[dispCount]):
             seqCount += 1
             peakVals[peakNdx] += 1
 
-         elif ((seq[primerLoc+len(config.get('primer'))+seqCount] != 'A') and
-               (seq[primerLoc+len(config.get('primer'))+seqCount] != 'T') and
-               (seq[primerLoc+len(config.get('primer'))+seqCount] != 'C') and
-               (seq[primerLoc+len(config.get('primer'))+seqCount] != 'G')):
+         elif ((seq[primer_end + seqCount] != 'A') and
+               (seq[primer_end + seqCount] != 'T') and
+               (seq[primer_end + seqCount] != 'C') and
+               (seq[primer_end + seqCount] != 'G')):
             seqCount += 1
             dispCount += 1
             peakNdx += 1
@@ -113,11 +118,13 @@ def pyroprintSequences(allSequences, dispSeq, config):
             dispCount += 1
             peakNdx += 1
 
-      seqList.append((seqFile, seq[primerLoc + len(config.get('primer')) :
-                                   primerLoc + len(config.get('primer')) + seqCount],
-                                   peakVals))
-   return seqList
+      seq_obj.set_pyroprint(peakVals)
+      seq_obj.set_allele(seq[primer_end : primer_end + seqCount])
+   return allSequences
 
+'''
+   Returns a list of Sequence objects (see Sequence.py)
+'''
 def extractFileSequences(sequenceFiles):
    allSequences = []
 
@@ -125,12 +132,15 @@ def extractFileSequences(sequenceFiles):
       with open(sequenceFile) as f:
          text = f.read()
          substring = ""
+         matches = re.search("^>(\d+) .* (.*):", text)
 
-         if (text.find("ribosomal RNA") > 0):
+         if (matches is not None):
             for line in text:
                if ">" in line:
                   if (substring != ""):
-                     allSequences.append(substring)
+                     allSequences.append(Sequence(sequenceFile, substring,
+                                                  matches.group(2),
+                                                  matches.group(1)))
                   substring = ""
                else:
                   substring += line.replace("\n","")
@@ -138,7 +148,8 @@ def extractFileSequences(sequenceFiles):
             for line in text:
                substring += line.replace("\n","")
 
-         allSequences.append((sequenceFile, substring))
+         allSequences.append(Sequence(sequenceFile, substring,
+                                      matches.group(2), matches.group(1)))
 
    return allSequences
 

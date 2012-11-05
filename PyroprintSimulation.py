@@ -63,9 +63,9 @@ class PyroprintSimulation(object):
       self.ranges.extend([bucket for bucket in generateRanges(begin, end, step)])
 
    def prep_simulation(self):
-      (allele_set, disp_len) = SequenceParser.extractAlleles(self.config)
-      self.alleles = list(allele_set)
-      self.num_alleles = len(self.alleles)
+      (sequence_set, disp_len) = SequenceParser.extractAlleles(self.config)
+      self.seqs = list(allele_set)
+      self.num_alleles = len(self.seqs)
       self.pyro_len = max(disp_len, self.config.get('pyro_len'))
       self.num_isolates = calcCombinations(self.num_alleles,
                                            self.config.get('num_loci'))
@@ -76,7 +76,7 @@ class PyroprintSimulation(object):
 
       for allele_ndx in range(self.num_alleles):
          numpy.put(self.alleles_cpu[allele_ndx], range(self.pyro_len),
-                   self.alleles[allele_ndx].pyroprint)
+                   self.seqs[allele_ndx].pyro)
 
    def get_state(self):
       state = ''
@@ -86,8 +86,9 @@ class PyroprintSimulation(object):
 
       state += '\nAlleles:\n'
 
-      for allele in self.alleles:
-         state += "seq: {0}\n{1}\n".format(allele.sequence, allele.pyroprint)
+      for allele in self.seqs:
+         state += "strain:\t{0}\n\tsequence:\t{1}\n\tpyroprint:\t{2}\n".format(
+                  allele.strain_id, allele.sequence, allele.pyro)
          #state += "seq: {0}\n".format(allele.sequence)
 
       return state
@@ -111,10 +112,10 @@ class PyroprintSimulation(object):
    def is_ready(self):
       if (self.config is None): print("Simulation config not initialized.")
       if (self.cuda_src is None): print("CUDA code not loaded.")
-      if (self.alleles is None): print("DNA not yet pyrosequenced.")
+      if (self.seqs is None): print("DNA not yet pyrosequenced.")
 
       return (self.config is not None and self.cuda_src is not None and
-              self.alleles is not None)
+              self.seqs is not None)
 
    def run(self, num_threads=16, num_blocks=32):
       if (not self.is_ready()):
@@ -134,13 +135,13 @@ class PyroprintSimulation(object):
       if ('DEBUG' in os.environ):
          print("Num expected isolates: {0}".format(self.num_isolates))
          '''
-         pyro1 = copy.deepcopy(self.alleles[0].pyroprint)
-         pyro2 = copy.deepcopy(self.alleles[5].pyroprint)
+         pyro1 = copy.deepcopy(self.seqs[0].pyro)
+         pyro2 = copy.deepcopy(self.seqs[5].pyro)
 
          for x in range(1,7):
             for y in range(self.pyro_len):
-               pyro1[y] += self.alleles[x].pyroprint[y]
-               pyro2[y] += self.alleles[x+5].pyroprint[y]
+               pyro1[y] += self.seqs[x].pyro[y]
+               pyro2[y] += self.seqs[x+5].pyro[y]
 
          print("Pyro1: {0}\nPyro2: {1}".format(pyro1, pyro2))
          '''
