@@ -64,7 +64,7 @@ class PyroprintSimulation(object):
 
    def prep_simulation(self):
       (sequence_set, disp_len) = SequenceParser.extractAlleles(self.config)
-      self.seqs = list(allele_set)
+      self.seqs = list(sequence_set)
       self.num_alleles = len(self.seqs)
       self.pyro_len = max(disp_len, self.config.get('pyro_len'))
       self.num_isolates = calcCombinations(self.num_alleles,
@@ -75,8 +75,11 @@ class PyroprintSimulation(object):
                                  dtype=numpy.uint8, order='C')
 
       for allele_ndx in range(self.num_alleles):
-         numpy.put(self.alleles_cpu[allele_ndx], range(self.pyro_len),
-                   self.seqs[allele_ndx].pyro)
+         if (self.seqs[allele_ndx].pyro is not None):
+            numpy.put(self.alleles_cpu[allele_ndx], range(self.pyro_len),
+                      self.seqs[allele_ndx].pyro)
+         else:
+            print("allele index %d is None?" % allele_ndx)
 
    def get_state(self):
       state = ''

@@ -46,7 +46,7 @@ def extractAlleles(configuration):
 
    # find unique strings
    for seq_obj in seqList:
-      (seqFile, seqStr, seqPeaks) = (seq_obj.src_file, seq_obj.allele,
+      (seqFile, seqStr, seqPeaks) = (seq_obj.src_file, seq_obj.get_allele(),
                                      seq_obj.pyro)
 
       if ((configuration.get('alleles') == -1 or
@@ -85,7 +85,7 @@ def pyroprintSequences(allSequences, dispSeq, config):
    pyro_len = config.get('pyro_len') if config.get('pyro_len') > 0 else len(dispSeq)
 
    for seq_obj in allSequences:
-      (seqFile, seq) = (seq_obj.src_file, seq_obj.seq)
+      (seqFile, seq) = (seq_obj.src_file, seq_obj.sequence)
 
       peakVals = [0] * pyro_len
       (peakNdx, seqCount, dispCount) = (0, 0, 0)
@@ -148,8 +148,11 @@ def extractFileSequences(sequenceFiles):
             for line in text:
                substring += line.replace("\n","")
 
-         allSequences.append(Sequence(sequenceFile, substring,
-                                      matches.group(2), matches.group(1)))
+         if (matches is not None):
+            allSequences.append(Sequence(sequenceFile, substring,
+                                         matches.group(2), matches.group(1)))
+         else:
+            allSequences.append(Sequence(sequenceFile, substring))
 
    return allSequences
 
