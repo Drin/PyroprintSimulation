@@ -90,9 +90,10 @@ class PyroprintSimulation(object):
       state += '\nAlleles:\n'
 
       for allele in self.seqs:
-         state += "strain:\t{0}\n\tsequence:\t{1}\n\tpyroprint:\t{2}\n".format(
-                  allele.strain_id, allele.sequence, allele.pyro)
-         #state += "seq: {0}\n".format(allele.sequence)
+         state += ("file:\t{3}\nstrain:\t{0}\nloci:\t{4}\n" +
+                   "allele:\t{1}\npyroprint:\t{2}\n").format(
+                   allele.strain_id, allele.allele, allele.pyro,
+                   allele.src_file, allele.loci_id)
 
       return state
 

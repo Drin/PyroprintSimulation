@@ -25,14 +25,14 @@ class Sequence(object):
       return self.allele
 
    def __hash__(self):
-      return self.sequence.__hash__()
+      return self.allele.__hash__()
 
    def __eq__(self, otherSeq):
       if (isinstance(otherSeq, Sequence)):
-         return self.sequence.__eq__(otherSeq.sequence)
+         return self.allele.__eq__(otherSeq.allele)
 
    def __str__(self):
-      return self.sequence
+      return self.allele
 
    def __repr__(self):
-      return self.sequence
+      return self.allele

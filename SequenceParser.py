@@ -39,25 +39,45 @@ def extractAlleles(configuration):
    #(<fileName>, <allele DNA sequence>, <allele histogram>)
    seqList = pyroprintSequences(allSequences, expanded_seq, configuration)
 
+   '''
+   if ('DEBUG' in os.environ):
+      for seq in seqList:
+         print("seq: '%s'" % seq.
+   '''
+
    if ('DEBUG' in os.environ):
       print ("numAlleles: {0}\n".format(configuration.get('alleles')))
 
    uniqueSeqs = set()
+   alleleStats = dict()
 
    # find unique strings
    for seq_obj in seqList:
       (seqFile, seqStr, seqPeaks) = (seq_obj.src_file, seq_obj.get_allele(),
                                      seq_obj.pyro)
 
-      if ((configuration.get('alleles') == -1 or
-          len(uniqueSeqs) < configuration.get('alleles')) and
-          seqStr not in uniqueSeqs):
+      if (configuration.get('alleles') == -1 or
+          len(uniqueSeqs) < configuration.get('alleles')):
          uniqueSeqs.add(seq_obj)
+
+         if (seqStr not in alleleStats):
+            alleleStats[seqStr] = [seq_obj]
+         else:
+            alleleStats[seqStr].append(seq_obj)
 
    if ('DEBUG' in os.environ):
       for seq_obj in uniqueSeqs:
          print ("allele '{0}' from file '{1}'\n\thas pyroprint '{2}'\n".format(
-                seq_obj.sequence, seq_obj.src_file, seq_obj.pyro))
+                seq_obj.allele, seq_obj.src_file, seq_obj.pyro))
+
+   if ('STATS' in os.environ):
+      for (allele_seq, seq_objs) in alleleStats.iteritems():
+         print("\n\nallele '%s' was found [%s] times:" % (allele_seq,
+                                                      len(seq_objs)))
+         for seq_obj in seq_objs:
+            print("\tfile: %s, strain: %s, loci: %s" % (seq_obj.src_file,
+                                                        seq_obj.strain_id,
+                                                        seq_obj.loci_id))
 
    return (uniqueSeqs, len(expanded_seq))
 
@@ -86,30 +106,26 @@ def pyroprintSequences(allSequences, dispSeq, config):
 
    for seq_obj in allSequences:
       (seqFile, seq) = (seq_obj.src_file, seq_obj.sequence)
+      rev_seq = reverseComplSeq(seq)
 
-      peakVals = [0] * pyro_len
+      peakVals = [0 for ndx in range(pyro_len)]
       (peakNdx, seqCount, dispCount) = (0, 0, 0)
 
-      if (config.get('primer') not in seq and
-          config.get('primer') not in reverseComplSeq(seq)):
-         continue
+      forward_primer_loc = seq.find(config.get('primer'))
+      reverse_primer_loc = rev_seq.find(config.get('primer'))
 
-      primerLoc = seq.find(config.get('primer'))
-      if (primerLoc < 0):
-         seq = reverseComplSeq(seq)
-         primerLoc = seq.find(config.get('primer'))
-
-      primer_end = primerLoc + len(config.get('primer'))
+      seq_obj.sequence = seq[forward_primer_loc + len(config.get('primer')):]
+      forward_primer_end = forward_primer_loc + len(config.get('primer'))
 
       while (dispCount < pyro_len):
-         if (seq[primer_end + seqCount] == dispSeq[dispCount]):
+         if (seq[forward_primer_end + seqCount] == dispSeq[dispCount]):
             seqCount += 1
             peakVals[peakNdx] += 1
 
-         elif ((seq[primer_end + seqCount] != 'A') and
-               (seq[primer_end + seqCount] != 'T') and
-               (seq[primer_end + seqCount] != 'C') and
-               (seq[primer_end + seqCount] != 'G')):
+         elif ((seq[forward_primer_end + seqCount] != 'A') and
+               (seq[forward_primer_end + seqCount] != 'T') and
+               (seq[forward_primer_end + seqCount] != 'C') and
+               (seq[forward_primer_end + seqCount] != 'G')):
             seqCount += 1
             dispCount += 1
             peakNdx += 1
@@ -119,7 +135,7 @@ def pyroprintSequences(allSequences, dispSeq, config):
             peakNdx += 1
 
       seq_obj.set_pyroprint(peakVals)
-      seq_obj.set_allele(seq[primer_end : primer_end + seqCount])
+      seq_obj.set_allele(seq[forward_primer_end : forward_primer_end + seqCount])
    return allSequences
 
 '''
@@ -130,34 +146,35 @@ def extractFileSequences(sequenceFiles):
 
    for sequenceFile in sequenceFiles:
       with open(sequenceFile) as f:
-         text = f.read()
-         substring = ""
-         matches = re.search("^>(\d+) .* (.*):", text)
+         text = f.read().split('\n')
+         (substring, loci_id, strain_id) = ('', None, None)
 
-         if (matches is not None):
-            for line in text:
-               if ">" in line:
-                  if (substring != ""):
-                     allSequences.append(Sequence(sequenceFile, substring,
-                                                  matches.group(2),
-                                                  matches.group(1)))
-                  substring = ""
+         for line in text:
+            line = re.sub(r'\r|\n', '', line)
+
+            if ">" in line:
+               if (substring):
+                  allSequences.append(Sequence(sequenceFile, substring,
+                                                  strain_id, loci_id))
+
+                  substring = ''
+
+               matches = re.search("^>(\d+) .* coli (.*):", line)
+               if (matches is not None):
+                  (loci_id, strain_id) = (matches.group(1), matches.group(2))
                else:
-                  substring += line.replace("\n","")
-         else:
-            for line in text:
-               substring += line.replace("\n","")
+                  (loci_id, strain_id) = (None, None)
 
-         if (matches is not None):
-            allSequences.append(Sequence(sequenceFile, substring,
-                                         matches.group(2), matches.group(1)))
-         else:
-            allSequences.append(Sequence(sequenceFile, substring))
+            else:
+               substring += line
+
+         if (substring):
+            allSequences.append(Sequence(sequenceFile, substring, strain_id, loci_id))
 
    return allSequences
 
 def complement(char):
-   return NUCL_COMPL.get(char.upper())
+   return NUCL_COMPL.get(char.upper()) or '-'
 
 def reverseComplSeq(seq):
    reverseCompl = ""
