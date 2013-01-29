@@ -54,7 +54,7 @@ def parse_args(programDesc):
    parser.add_argument("-p",         dest="data_path", default=DEFAULT_PATH, help=PATH_HELP)
    parser.add_argument("-d",         dest="disp",      default=DEFAULT_DISP, help=DISP_HELP)
    parser.add_argument("-n",         dest="alleles",   default=0, type=int, help=ALLELE_HELP)
-   parser.add_argument("--primer",   dest="primer",    default="TTGGATCAC",  help=PRIMER_HELP)
+   parser.add_argument("--primer",   dest="primer",    default="",  help=PRIMER_HELP)
    parser.add_argument("--num_loci", dest="num_loci",  default=7,  type=int, help=LOCI_HELP)
    parser.add_argument("--num_gpus", dest="num_gpus",  default=0, type=int, help=DEV_HELP)
    parser.add_argument("--mem_type", dest="memory",    default="constant",   help=MEM_HELP)

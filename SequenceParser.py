@@ -111,13 +111,15 @@ def pyroprintSequences(allSequences, dispSeq, config):
       peakVals = [0 for ndx in range(pyro_len)]
       (peakNdx, seqCount, dispCount) = (0, 0, 0)
 
-      forward_primer_loc = seq.find(config.get('primer'))
-      reverse_primer_loc = rev_seq.find(config.get('primer'))
+      (forward_primer_loc, forward_primer_end) = (0, 0)
+      if (config.get('primer') != ''):
+         forward_primer_loc = seq.find(config.get('primer'))
+         forward_primer_end = forward_primer_loc + len(config.get('primer'))
 
-      seq_obj.sequence = seq[forward_primer_loc + len(config.get('primer')):]
-      forward_primer_end = forward_primer_loc + len(config.get('primer'))
+      seq_obj.sequence = seq[forward_primer_end:]
 
-      while (dispCount < pyro_len):
+      #TODO be sure this is correct
+      while ((dispCount < pyro_len) and (forward_primer_end + seqCount) < len(seq)):
          if (seq[forward_primer_end + seqCount] == dispSeq[dispCount]):
             seqCount += 1
             peakVals[peakNdx] += 1
@@ -136,6 +138,11 @@ def pyroprintSequences(allSequences, dispSeq, config):
 
       seq_obj.set_pyroprint(peakVals)
       seq_obj.set_allele(seq[forward_primer_end : forward_primer_end + seqCount])
+
+      if ('DEBUG' in os.environ):
+         print("sequence: %s\nallele: %s\n" % (seq, seq_obj.get_allele()))
+         print("pyroprint: %s\n" % peakVals)
+
    return allSequences
 
 '''
